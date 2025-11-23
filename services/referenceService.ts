@@ -64,10 +64,12 @@ export const importReferenceMetadata = async (query: string): Promise<Partial<Re
           }).join(", ");
           const doi = article.querySelector('ArticleId[IdType="doi"]')?.textContent || "";
 
-          // Extract Publication Types (e.g., Randomized Controlled Trial, Review, etc.)
+          // Extract Publication Types directly from PubMed XML (e.g., Randomized Controlled Trial, Review, Clinical Trial)
+          // We strictly pull this from the API to ensure accuracy.
+          // We filter out "Journal Article" as it is the generic default and we want to highlight specific study designs.
           const pubTypes = Array.from(article.querySelectorAll("PublicationTypeList PublicationType"))
             .map(n => n.textContent || '')
-            .filter(t => t && t !== 'Journal Article'); // Filter out generic "Journal Article" to reduce noise
+            .filter(t => t && t.toLowerCase() !== 'journal article'); 
           
           const articleType = pubTypes.join(", ");
 
