@@ -1,3 +1,4 @@
+
 import { Project } from '../types';
 
 const STORAGE_KEY = 'manuscript_ai_projects_v1';
@@ -20,7 +21,20 @@ export const generateId = (): string => {
 export const getProjects = (): Project[] => {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const projects = data ? JSON.parse(data) : [];
+    
+    // Migration: Ensure new fields exist on old projects
+    return projects.map((p: any) => ({
+      ...p,
+      manuscriptMetadata: p.manuscriptMetadata || { authors: [], affiliations: [] },
+      // Ensure settings exists if it was missing in very old versions
+      settings: p.settings || {
+        targetJournal: '',
+        wordCountTarget: 3000,
+        formattingRequirements: '',
+        tone: 'Academic and formal',
+      }
+    }));
   } catch (e) {
     console.error("Failed to load projects", e);
     return [];
@@ -63,6 +77,10 @@ export const createNewProject = (title: string, description: string): Project =>
       wordCountTarget: 3000,
       formattingRequirements: '',
       tone: 'Academic and formal',
+    },
+    manuscriptMetadata: {
+        authors: [],
+        affiliations: []
     },
     sections: [],
     references: [],

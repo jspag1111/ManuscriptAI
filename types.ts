@@ -36,6 +36,28 @@ export interface ProjectSettings {
   tone: string;
 }
 
+export interface Affiliation {
+  id: string;
+  institution: string;
+  department?: string;
+  city?: string;
+  country?: string;
+}
+
+export interface Author {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  isCorresponding: boolean;
+  affiliationIds: string[];
+}
+
+export interface ManuscriptMetadata {
+  authors: Author[];
+  affiliations: Affiliation[];
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -43,6 +65,7 @@ export interface Project {
   created: number;
   lastModified: number;
   settings: ProjectSettings;
+  manuscriptMetadata: ManuscriptMetadata;
   sections: Section[];
   references: Reference[];
   figures: GeneratedFigure[];
@@ -76,4 +99,5 @@ export enum SectionView {
   EDITOR = 'EDITOR',
   VERSIONS = 'VERSIONS',
   FIGURES = 'FIGURES',
+  METADATA = 'METADATA',
 }

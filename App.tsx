@@ -1,13 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
 import { Project, AppView, SectionView, Section } from './types';
 import { getProjects, saveProject, createNewProject, deleteProject, generateId } from './services/storageService';
+import { exportProjectToWord } from './services/exportService';
 import { DEFAULT_SECTIONS } from './constants';
 import { Button } from './components/Button';
 import { SectionEditor } from './components/SectionEditor';
 import { ReferenceManager } from './components/ReferenceManager';
 import { FigureGenerator } from './components/FigureGenerator';
 import { HistoryViewer } from './components/HistoryViewer';
-import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check } from 'lucide-react';
+import { MetadataEditor } from './components/MetadataEditor';
+import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -87,12 +90,15 @@ const App: React.FC = () => {
     });
   };
 
+  const handleExport = () => {
+      if (currentProject) {
+          exportProjectToWord(currentProject);
+      }
+  };
+
   // Section Management Handlers
   const handleAddSection = () => {
     if (!newSectionName.trim()) return;
-    
-    // Check for duplicate names (optional, but good UX)
-    // const exists = currentProject?.sections.some(s => s.title.toLowerCase() === newSectionName.trim().toLowerCase());
     
     const newSec: Section = {
       id: generateId(),
@@ -258,10 +264,10 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm" onClick={() => {/* Settings modal logic would go here */}}>
-             <Settings size={18} className="text-slate-500" />
-          </Button>
-          <div className="h-4 w-px bg-slate-300 mx-2"></div>
+           <Button variant="secondary" size="sm" onClick={handleExport} className="hidden sm:flex items-center gap-2">
+              <Download size={16} /> Export DOCX
+           </Button>
+           <div className="h-4 w-px bg-slate-300 mx-2"></div>
            <span className="text-xs text-slate-400 flex items-center">
              <Save size={14} className="mr-1" /> Auto-saving
            </span>
@@ -272,7 +278,21 @@ const App: React.FC = () => {
         {/* Sidebar */}
         <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
           <div className="p-4 flex-1 overflow-y-auto">
-             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Sections</h2>
+             <div className="mb-6">
+                 <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Manuscript Info</h2>
+                 <button
+                    onClick={() => setActiveTab(SectionView.METADATA)}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center ${
+                      activeTab === SectionView.METADATA
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                 >
+                   <Info size={16} className="mr-2" /> Title & Authors
+                 </button>
+             </div>
+
+             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Sections</h2>
              <nav className="space-y-1">
                {currentProject.sections.map(section => (
                  <div key={section.id} className="group flex items-center gap-1 relative">
@@ -299,7 +319,7 @@ const App: React.FC = () => {
                                 setActiveTab(SectionView.EDITOR);
                             }}
                             className={`flex-1 text-left px-3 py-2 rounded-md text-sm font-medium transition-colors truncate pr-16 ${
-                            activeSectionId === section.id 
+                            activeTab === SectionView.EDITOR && activeSectionId === section.id 
                             ? 'bg-blue-100 text-blue-700' 
                             : 'text-slate-600 hover:bg-slate-100'
                             }`}
@@ -349,7 +369,7 @@ const App: React.FC = () => {
              </nav>
 
              <div className="mt-8">
-               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Tools</h2>
+               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tools</h2>
                <nav className="space-y-1">
                  <button
                     onClick={() => setActiveTab(SectionView.FIGURES)}
@@ -362,9 +382,9 @@ const App: React.FC = () => {
                    <Image size={16} className="mr-2" /> Figures
                  </button>
                  <button
-                    onClick={() => setActiveTab('REFERENCES' as any)} // Using a temporary cast for logic simplicity
+                    onClick={() => setActiveTab('REFERENCES' as any)}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center ${
-                      activeTab === 'REFERENCES' as any
+                      (activeTab as any) === 'REFERENCES'
                       ? 'bg-blue-100 text-blue-700' 
                       : 'text-slate-600 hover:bg-slate-100'
                     }`}
@@ -419,6 +439,13 @@ const App: React.FC = () => {
               project={currentProject}
               onUpdateProject={handleUpdateProject}
             />
+          )}
+
+          {activeTab === SectionView.METADATA && (
+              <MetadataEditor 
+                  project={currentProject}
+                  onUpdateProject={handleUpdateProject}
+              />
           )}
         </div>
       </div>
