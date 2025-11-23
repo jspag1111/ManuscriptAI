@@ -1,0 +1,5 @@
+{
+  "name": "ManuscriptAI",
+  "description": "An intelligent, iterative research manuscript creation environment with built-in reference management and figure generation.",
+  "requestFramePermissions": []
+}
