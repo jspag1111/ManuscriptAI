@@ -6,7 +6,7 @@ import { importReferenceMetadata } from '../services/referenceService';
 import { generateId } from '../services/storageService';
 import { getBibliographyOrder } from '../utils/citationUtils';
 import { Button } from './Button';
-import { BookOpen, Plus, Trash2, Sparkles, Copy, Download, Search, ChevronDown, ChevronRight, ListOrdered, Library, Globe, ExternalLink, ArrowRight, Terminal } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Sparkles, Copy, Download, Search, ChevronDown, ChevronRight, ListOrdered, Library, Globe, ExternalLink, Tag } from 'lucide-react';
 
 interface ReferenceManagerProps {
   project: Project;
@@ -60,7 +60,8 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
         doi: refData.doi || '',
         summary: refData.summary || '',
         abstract: refData.abstract || '',
-        notes: refData.notes || ''
+        notes: refData.notes || '',
+        articleType: refData.articleType || ''
     };
     onUpdateProject({
         ...project,
@@ -131,6 +132,9 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
 
           // Step 2: Fetch Metadata sequentially to show progress
           for (let i = 0; i < initialResults.length; i++) {
+              // Add delay to respect API rate limits and prevent network congestion
+              if (i > 0) await new Promise(resolve => setTimeout(resolve, 600));
+
               const item = initialResults[i];
               if (item.pmid) {
                     setSearchLogs(prev => [...prev, `Fetching metadata for PMID: ${item.pmid}...`]);
@@ -148,11 +152,14 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                                         doi: metadata.doi,
                                         abstract: metadata.abstract,
                                         publication: metadata.publication,
+                                        articleType: metadata.articleType,
                                         // Keep relevance from AI
                                     };
                                 }
                                 return res;
                             }));
+                        } else {
+                            setSearchLogs(prev => [...prev, `Metadata unavailable for PMID ${item.pmid}`]);
                         }
                     } catch (e) {
                         setSearchLogs(prev => [...prev, `Failed to fetch metadata for PMID ${item.pmid}`]);
@@ -181,7 +188,8 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
               doi: result.doi || '',
               abstract: result.abstract || '',
               summary: result.relevance, // Use relevance as the initial summary
-              notes: result.url ? `Source URL: ${result.url}\nPMID: ${result.pmid}` : ''
+              notes: result.url ? `Source URL: ${result.url}\nPMID: ${result.pmid}` : '',
+              articleType: result.articleType || ''
           };
 
           saveNewReference(refData);
@@ -228,8 +236,15 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                     <div className="flex items-center justify-center bg-blue-100 text-blue-700 font-bold text-xs h-6 w-6 rounded mr-3 shrink-0">L</div>
                  )}
                  
-                 <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-slate-800 truncate pr-4">{ref.title}</h4>
+                 <div className="flex-1 min-w-0 mr-4">
+                    <h4 className="font-medium text-slate-800 truncate">{ref.title}</h4>
+                    {ref.articleType && (
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wide">
+                                {ref.articleType}
+                            </span>
+                        </div>
+                    )}
                  </div>
                  <div className="text-xs text-slate-500 shrink-0">
                     {ref.year}
@@ -368,6 +383,7 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                     </div>
                     <input placeholder="Publication / Journal" className="w-full p-2 border rounded text-sm" value={newRef.publication || ''} onChange={e => setNewRef({...newRef, publication: e.target.value})} />
                     <input placeholder="DOI (Optional)" className="w-full p-2 border rounded text-sm" value={newRef.doi || ''} onChange={e => setNewRef({...newRef, doi: e.target.value})} />
+                    <input placeholder="Article Type (e.g. Review, Clinical Trial)" className="w-full p-2 border rounded text-sm" value={newRef.articleType || ''} onChange={e => setNewRef({...newRef, articleType: e.target.value})} />
                     <textarea placeholder="Abstract (Optional)" className="w-full p-2 border rounded text-sm h-24" value={newRef.abstract || ''} onChange={e => setNewRef({...newRef, abstract: e.target.value})} />
                     <div className="flex justify-end">
                         <Button onClick={handleManualAdd} disabled={!newRef.title || !newRef.authors}>Save Reference</Button>
@@ -441,7 +457,13 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                                     )}
                                 </div>
                                 
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600 mb-3">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600 mb-3">
+                                    {result.articleType && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wide">
+                                            <Tag size={10} className="mr-1" />
+                                            {result.articleType}
+                                        </span>
+                                    )}
                                     {result.authors ? (
                                         <span>{result.authors}</span>
                                     ) : (

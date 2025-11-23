@@ -9,6 +9,7 @@ export interface Reference {
   summary?: string;
   abstract?: string;
   notes?: string;
+  articleType?: string;
 }
 
 export interface SectionVersion {
@@ -63,6 +64,7 @@ export interface PaperSearchResult {
   authors?: string;
   year?: string;
   abstract?: string;
+  articleType?: string;
 }
 
 export enum AppView {

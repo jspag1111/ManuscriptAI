@@ -156,7 +156,11 @@ export const findRelevantPapers = async (query: string): Promise<PaperSearchResu
     try {
       const results = JSON.parse(cleanText);
       // Ensure we only return results that have a PMID as per user request
-      return results.filter((r: any) => r.pmid && /^\d+$/.test(r.pmid));
+      // And ensure PMID is treated as a string to avoid downstream errors
+      return results
+        .filter((r: any) => r.pmid)
+        .map((r: any) => ({ ...r, pmid: String(r.pmid) }))
+        .filter((r: any) => /^\d+$/.test(r.pmid));
     } catch (parseError) {
       console.warn("Failed to parse JSON from search result", text);
       return [];
