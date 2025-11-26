@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Project, AppView, SectionView, Section } from './types';
 import { getProjects, saveProject, createNewProject, deleteProject, generateId } from './services/storageService';
@@ -53,7 +54,8 @@ const App: React.FC = () => {
       content: '',
       userNotes: ds.defaultNotes,
       versions: [],
-      lastModified: Date.now()
+      lastModified: Date.now(),
+      useReferences: true
     }));
     
     saveProject(newProject);
@@ -106,7 +108,8 @@ const App: React.FC = () => {
       content: '',
       userNotes: '',
       versions: [],
-      lastModified: Date.now()
+      lastModified: Date.now(),
+      useReferences: true
     };
     
     if (currentProject) {

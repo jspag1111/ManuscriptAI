@@ -1,4 +1,5 @@
 
+
 export interface Reference {
   id: string;
   title: string;
@@ -27,6 +28,7 @@ export interface Section {
   userNotes: string; // "What I want in this section"
   versions: SectionVersion[];
   lastModified: number;
+  useReferences?: boolean;
 }
 
 export interface ProjectSettings {
@@ -80,12 +82,13 @@ export interface GeneratedFigure {
 
 export interface PaperSearchResult {
   title: string;
-  relevance: string;
+  relevance?: string;
   doi?: string;
   pmid?: string;
   url?: string;
   authors?: string;
   year?: string;
+  publication?: string; // Added journal/publication name
   abstract?: string;
   articleType?: string;
 }

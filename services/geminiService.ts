@@ -1,6 +1,5 @@
-
 import { GoogleGenAI } from "@google/genai";
-import { Project, Reference, Section, PaperSearchResult } from '../types';
+import { Project, Reference, Section } from '../types';
 import { MODEL_TEXT_QUALITY, MODEL_TEXT_FAST, MODEL_IMAGE } from '../constants';
 
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -12,15 +11,18 @@ export const generateSectionDraft = async (
 ): Promise<string> => {
   const ai = getAI();
   
-  const hasReferences = project.references.length > 0;
+  const useReferences = section.useReferences !== false; // Default to true if undefined
+  const hasReferences = project.references.length > 0 && useReferences;
 
   // Construct context from project settings and references
-  // Prefer abstract if available, otherwise summary, otherwise just title/author
   const referenceList = hasReferences
-    ? project.references.map((r, i) => 
-        `[${i+1}] ${r.authors} (${r.year}). ${r.title}. ${r.abstract ? `Abstract: ${r.abstract}` : (r.summary ? `Summary: ${r.summary}` : '')}`
+    ? project.references.map((r) => 
+        `RefID: ${r.id}
+         Citation Info: ${r.authors} (${r.year}). ${r.title}.
+         Content: ${r.abstract ? `Abstract: ${r.abstract}` : (r.summary ? `Summary: ${r.summary}` : '')}
+         ---`
       ).join('\n')
-    : "No references provided.";
+    : "No references provided or references disabled for this section.";
 
   const systemInstruction = `
     You are an expert academic research assistant helping to write a manuscript.
@@ -31,9 +33,13 @@ export const generateSectionDraft = async (
     Formatting Requirements: ${project.settings.formattingRequirements}
 
     Your goal is to draft or refine the "${section.title}" section.
+    
     ${hasReferences 
-      ? 'Adhere strictly to academic standards. Use citations like [1], [2] where appropriate based ONLY on the provided reference list. Do not cite sources not in the list.' 
-      : 'Adhere strictly to academic standards. DO NOT include any in-text citations (like [1] or (Author, Year)) because no references are provided.'}
+      ? `You have access to a list of provided references. You MUST cite these references in the text where appropriate to support your statements.
+         IMPORTANT: You must use the following citation format exactly: [[ref:RefID]].
+         Example: "Recent studies have shown X [[ref:1234-abcd]]."
+         Do NOT use formatted citations like "(Smith, 2023)" or "[1]" in the output text. Use only the [[ref:ID]] format.` 
+      : 'Adhere strictly to academic standards. DO NOT include any in-text citations (like [1] or (Author, Year)) because references are disabled or not provided.'}
   `;
 
   const prompt = `
@@ -114,59 +120,41 @@ export const summarizeReference = async (referenceText: string): Promise<string>
   }
 };
 
-export const findRelevantPapers = async (query: string): Promise<PaperSearchResult[]> => {
+export const generatePubMedSearchQuery = async (userQuery: string): Promise<string> => {
   const ai = getAI();
   
   const prompt = `
-    Perform a Google Search to find high-quality academic papers relevant to this request: "${query}".
-    Focus strictly on finding articles indexed in PubMed.
+    You are an expert research librarian proficient in PubMed/Medline search syntax.
+    Convert the following user request into a precise PubMed search query string.
 
-    For each relevant paper found, extract:
-    1. "pmid": The PubMed ID (REQUIRED). If you cannot find a PMID, do not include the paper.
-    2. "title": The title of the paper.
-    3. "relevance": A specific, high-quality explanation of why this paper is relevant to the user's specific query.
-    
-    Return the results as a strictly valid JSON array string. 
-    Example structure: 
-    [
-      {
-        "pmid": "12345678",
-        "title": "Example Paper Title", 
-        "relevance": "This paper establishes the baseline for..."
-      }
-    ]
-    
-    Do not wrap the JSON in markdown blocks. Output only the raw JSON string.
+    User Request: "${userQuery}"
+
+    Rules:
+    1. Use MeSH terms where appropriate (e.g., "Diabetes Mellitus"[Mesh]).
+    2. Use boolean operators (AND, OR, NOT).
+    3. Use field tags if necessary (e.g., [Title/Abstract], [Publication Type]).
+    4. If the user asks for "reviews", "trials", etc., include the appropriate publication types.
+    5. Return ONLY the raw search string. Do not include markdown, explanations, or quotes around the whole string.
+
+    Example Output: ("Glucagon-Like Peptide-1"[Mesh] OR "GLP-1") AND ("Diabetes Mellitus"[Mesh]) AND ("Randomized Controlled Trial"[Publication Type])
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: MODEL_TEXT_FAST,
       contents: prompt,
-      config: {
-        tools: [{googleSearch: {}}],
-        // responseMimeType not allowed with tools
-      }
     });
-
-    const text = response.text || '[]';
-    // Clean up markdown if model adds it despite instructions
-    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
-    try {
-      const results = JSON.parse(cleanText);
-      // Ensure we only return results that have a PMID as per user request
-      // And ensure PMID is treated as a string to avoid downstream errors
-      return results
-        .filter((r: any) => r.pmid)
-        .map((r: any) => ({ ...r, pmid: String(r.pmid) }))
-        .filter((r: any) => /^\d+$/.test(r.pmid));
-    } catch (parseError) {
-      console.warn("Failed to parse JSON from search result", text);
-      return [];
+    let query = response.text || '';
+    // Clean up if the model adds markdown
+    query = query.replace(/^```/g, '').replace(/```$/g, '').trim();
+    // Remove leading/trailing quotes if the model added them
+    if (query.startsWith('"') && query.endsWith('"')) {
+        query = query.slice(1, -1);
     }
+    return query;
   } catch (error) {
-    console.error("Search Error:", error);
+    console.error("Gemini Search Query Gen Error:", error);
     throw error;
   }
 };

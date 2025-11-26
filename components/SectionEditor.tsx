@@ -7,7 +7,7 @@ import { getBibliographyOrder } from '../utils/citationUtils';
 import { Button } from './Button';
 import { DiffViewer } from './DiffViewer';
 import { RichEditor, RichEditorHandle } from './RichEditor';
-import { Wand2, Save, History, RefreshCw, PenTool, Quote, X, Search, Sparkles, FileText, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Wand2, Save, History, RefreshCw, PenTool, Quote, X, Search, Sparkles, FileText, ToggleLeft, ToggleRight, BookOpen } from 'lucide-react';
 
 interface SectionEditorProps {
   section: Section;
@@ -253,10 +253,28 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
           />
           
           <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
-            <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center">
-              <Wand2 size={16} className="mr-2" />
-              Gemini Drafter
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+                 <h4 className="text-sm font-semibold text-blue-800 flex items-center">
+                    <Wand2 size={16} className="mr-2" />
+                    Gemini Drafter
+                </h4>
+            </div>
+
+            <div className="flex items-center justify-between mb-4 bg-white p-2 rounded border border-blue-100">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 cursor-pointer" onClick={() => onUpdateSection({...section, useReferences: !section.useReferences})}>
+                    <BookOpen size={14} className={section.useReferences !== false ? "text-blue-500" : "text-slate-400"} /> 
+                    Use References
+                </label>
+                <button
+                    onClick={() => onUpdateSection({...section, useReferences: !section.useReferences})}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${section.useReferences !== false ? 'bg-blue-600' : 'bg-slate-300'}`}
+                    disabled={isReviewing}
+                    title="Toggle whether AI should cite references"
+                >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${section.useReferences !== false ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+            </div>
+
             <Button onClick={handleDraft} isLoading={isDrafting} disabled={isReviewing} className="w-full">
               {content.length > 0 ? 'Regenerate / Iterate Draft' : 'Generate First Draft'}
             </Button>

@@ -1,4 +1,5 @@
 
+
 import { Project } from '../types';
 
 const STORAGE_KEY = 'manuscript_ai_projects_v1';
@@ -33,7 +34,12 @@ export const getProjects = (): Project[] => {
         wordCountTarget: 3000,
         formattingRequirements: '',
         tone: 'Academic and formal',
-      }
+      },
+      // Ensure sections have useReferences flag (default true)
+      sections: Array.isArray(p.sections) ? p.sections.map((s: any) => ({
+        ...s,
+        useReferences: s.useReferences !== undefined ? s.useReferences : true
+      })) : []
     }));
   } catch (e) {
     console.error("Failed to load projects", e);

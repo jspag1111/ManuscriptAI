@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, Reference, PaperSearchResult } from '../types';
-import { summarizeReference, findRelevantPapers } from '../services/geminiService';
-import { importReferenceMetadata } from '../services/referenceService';
+import { summarizeReference, generatePubMedSearchQuery } from '../services/geminiService';
+import { importReferenceMetadata, searchPubMed, fetchBatchReferenceMetadata } from '../services/referenceService';
 import { generateId } from '../services/storageService';
 import { getBibliographyOrder } from '../utils/citationUtils';
 import { Button } from './Button';
@@ -44,11 +43,19 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
   // Compute the bibliography based on citation order in sections
   const bibliography = useMemo(() => {
      const order = getBibliographyOrder(project.sections);
-     // Filter references that are used, and map them to the full object
-     // We maintain the order found in text
      const usedRefs = order.map(id => project.references.find(r => r.id === id)).filter(Boolean) as Reference[];
      return usedRefs;
   }, [project.sections, project.references]);
+
+  // Helper to shorten author list for display
+  const formatAuthorsDisplay = (authors?: string) => {
+    if (!authors) return "Unknown Authors";
+    const parts = authors.split(',');
+    if (parts.length > 1) {
+      return `${parts[0].trim()} et al.`;
+    }
+    return authors;
+  };
 
   const saveNewReference = (refData: Partial<Reference>) => {
     const ref: Reference = {
@@ -115,63 +122,32 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
       setSearchLogs(["Initializing agent..."]);
 
       try {
-          // Step 1: Gemini Search for PMIDs
-          setSearchLogs(prev => [...prev, "Querying Gemini for relevant PubMed PMIDs..."]);
-          const initialResults = await findRelevantPapers(searchQuery);
+          // Step 1: Gemini Search Query Generation
+          setSearchLogs(prev => [...prev, "Translating request to PubMed syntax..."]);
+          const pubmedQuery = await generatePubMedSearchQuery(searchQuery);
+          setSearchLogs(prev => [...prev, `Generated Query: ${pubmedQuery}`]);
 
-          if (initialResults.length === 0) {
-              setSearchLogs(prev => [...prev, "No relevant PubMed articles found."]);
+          // Step 2: Search PubMed API
+          setSearchLogs(prev => [...prev, "Executing search on NCBI database..."]);
+          const pmids = await searchPubMed(pubmedQuery);
+
+          if (pmids.length === 0) {
+              setSearchLogs(prev => [...prev, "No results found on PubMed."]);
               setIsSearching(false);
               return;
           }
 
-          setSearchLogs(prev => [...prev, `Identified ${initialResults.length} potential articles. Retrieving full metadata from NCBI...`]);
+          setSearchLogs(prev => [...prev, `Found ${pmids.length} articles. Fetching metadata...`]);
           
-          // Initial set to show placeholders
-          setSearchResults(initialResults.map(r => ({ ...r, url: `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` })));
-
-          // Step 2: Fetch Metadata sequentially to show progress
-          for (let i = 0; i < initialResults.length; i++) {
-              // Add delay to respect API rate limits and prevent network congestion
-              if (i > 0) await new Promise(resolve => setTimeout(resolve, 600));
-
-              const item = initialResults[i];
-              if (item.pmid) {
-                    setSearchLogs(prev => [...prev, `Fetching metadata for PMID: ${item.pmid}...`]);
-                    try {
-                        const metadata = await importReferenceMetadata(item.pmid);
-                        if (metadata) {
-                            // Update the specific result in the state with real metadata
-                            setSearchResults(prev => prev.map((res, idx) => {
-                                if (idx === i) {
-                                    return {
-                                        ...res,
-                                        title: metadata.title || res.title, // Use API title, fallback to AI title
-                                        authors: metadata.authors,
-                                        year: metadata.year,
-                                        doi: metadata.doi,
-                                        abstract: metadata.abstract,
-                                        publication: metadata.publication,
-                                        articleType: metadata.articleType,
-                                        // Keep relevance from AI
-                                    };
-                                }
-                                return res;
-                            }));
-                        } else {
-                            setSearchLogs(prev => [...prev, `Metadata unavailable for PMID ${item.pmid}`]);
-                        }
-                    } catch (e) {
-                        setSearchLogs(prev => [...prev, `Failed to fetch metadata for PMID ${item.pmid}`]);
-                    }
-              }
-          }
-          setSearchLogs(prev => [...prev, "Search and retrieval complete."]);
+          // Step 3: Fetch Metadata
+          const references = await fetchBatchReferenceMetadata(pmids);
+          
+          setSearchResults(references);
+          setSearchLogs(prev => [...prev, "Search complete."]);
 
       } catch (e) {
           console.error(e);
-          setSearchLogs(prev => [...prev, "Search failed due to an error."]);
-          alert("Search failed. Please try again.");
+          setSearchLogs(prev => [...prev, "Search process encountered an error."]);
       } finally {
           setIsSearching(false);
       }
@@ -180,15 +156,14 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
   const handleAddSearchResult = async (result: PaperSearchResult, index: number) => {
       setAddingSearchResult(index);
       try {
-          // We likely already have the metadata from the search process, but let's be safe
           const refData: Partial<Reference> = {
               title: result.title,
               authors: result.authors || '',
               year: result.year || '',
               doi: result.doi || '',
               abstract: result.abstract || '',
-              summary: result.relevance, // Use relevance as the initial summary
-              notes: result.url ? `Source URL: ${result.url}\nPMID: ${result.pmid}` : '',
+              publication: result.publication || '',
+              notes: result.pmid ? `Source URL: https://pubmed.ncbi.nlm.nih.gov/${result.pmid}/\nPMID: ${result.pmid}` : '',
               articleType: result.articleType || ''
           };
 
@@ -238,13 +213,20 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                  
                  <div className="flex-1 min-w-0 mr-4">
                     <h4 className="font-medium text-slate-800 truncate">{ref.title}</h4>
-                    {ref.articleType && (
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wide">
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {ref.articleType && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wide">
                                 {ref.articleType}
                             </span>
-                        </div>
-                    )}
+                        )}
+                        <span className="text-xs text-slate-500">{formatAuthorsDisplay(ref.authors)}</span>
+                        {ref.publication && (
+                            <>
+                                <span className="text-xs text-slate-300">•</span>
+                                <span className="text-xs text-slate-500 italic truncate max-w-[200px]">{ref.publication}</span>
+                            </>
+                        )}
+                    </div>
                  </div>
                  <div className="text-xs text-slate-500 shrink-0">
                     {ref.year}
@@ -254,15 +236,18 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
               {isExpanded && (
                 <div className="px-4 pb-4 pt-0 border-t border-slate-100 bg-slate-50/50">
                    <div className="pt-3 space-y-3">
-                      <div className="text-sm text-slate-700">
-                         <span className="font-semibold">Authors:</span> {ref.authors}
+                      <div className="text-sm text-slate-700 grid grid-cols-[80px_1fr] gap-2">
+                         <span className="font-semibold text-slate-500">Authors:</span> 
+                         <span>{ref.authors}</span>
                       </div>
-                      <div className="text-sm text-slate-700">
-                         <span className="font-semibold">Journal:</span> {ref.publication}
+                      <div className="text-sm text-slate-700 grid grid-cols-[80px_1fr] gap-2">
+                         <span className="font-semibold text-slate-500">Journal:</span> 
+                         <span className="italic">{ref.publication || 'N/A'}</span>
                       </div>
                       {ref.doi && (
-                         <div className="text-sm">
-                             <a href={`https://doi.org/${ref.doi}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">DOI: {ref.doi}</a>
+                         <div className="text-sm text-slate-700 grid grid-cols-[80px_1fr] gap-2">
+                             <span className="font-semibold text-slate-500">DOI:</span>
+                             <a href={`https://doi.org/${ref.doi}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{ref.doi}</a>
                          </div>
                       )}
                       {ref.abstract && (
@@ -401,7 +386,7 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                  <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">
                      <h4 className="font-semibold text-slate-800 mb-2">Find Relevant Articles</h4>
                      <p className="text-sm text-slate-500 mb-4">
-                        Search specifically for articles indexed in PubMed. Gemini will identify PMIDs, and we will fetch the official metadata.
+                        Search specifically for articles indexed in PubMed. Gemini will translate your request into a precise PubMed query, and we will fetch results directly from NCBI.
                      </p>
                      <div className="flex flex-col gap-3">
                         <textarea
@@ -465,22 +450,18 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                                         </span>
                                     )}
                                     {result.authors ? (
-                                        <span>{result.authors}</span>
+                                        <span>{formatAuthorsDisplay(result.authors)}</span>
                                     ) : (
                                         <span className="text-slate-400 italic">Fetching authors...</span>
                                     )}
                                     {result.year && <span>({result.year})</span>}
                                 </div>
                                 
-                                <div className="bg-purple-50 p-3 rounded-md border border-purple-100 mb-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Sparkles size={14} className="text-purple-600" />
-                                        <span className="text-xs font-bold text-purple-700 uppercase">Relevance</span>
+                                {result.publication && (
+                                    <div className="text-xs text-slate-500 mb-3 italic">
+                                        {result.publication}
                                     </div>
-                                    <p className="text-sm text-slate-800 leading-relaxed">
-                                        {result.relevance}
-                                    </p>
-                                </div>
+                                )}
 
                                 {result.abstract && (
                                     <div className="mb-4">
