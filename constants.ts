@@ -8,5 +8,5 @@ export const DEFAULT_SECTIONS = [
 ];
 
 export const MODEL_TEXT_FAST = 'gemini-2.5-flash';
-export const MODEL_TEXT_QUALITY = 'gemini-3-pro-preview';
+export const MODEL_TEXT_QUALITY = 'gemini-2.5-pro';
 export const MODEL_IMAGE = 'gemini-2.5-flash-image';
