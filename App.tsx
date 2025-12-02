@@ -147,7 +147,11 @@ const App: React.FC = () => {
       versions: [],
       lastModified: Date.now(),
       useReferences: true,
-      includeInWordCount: true
+      includeInWordCount: true,
+      currentVersionId: generateId(),
+      currentVersionBase: '',
+      currentVersionStartedAt: Date.now(),
+      lastLlmContent: null
     }));
     
     try {
@@ -226,7 +230,11 @@ const App: React.FC = () => {
       versions: [],
       lastModified: Date.now(),
       useReferences: true,
-      includeInWordCount: true
+      includeInWordCount: true,
+      currentVersionId: generateId(),
+      currentVersionBase: '',
+      currentVersionStartedAt: Date.now(),
+      lastLlmContent: null
     };
     
     if (currentProject) {
@@ -652,8 +660,12 @@ const App: React.FC = () => {
                    content: version.content,
                    userNotes: version.notes,
                    lastModified: Date.now(),
-                   versions: [
-                     {...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`},
+                    currentVersionBase: version.content,
+                    currentVersionStartedAt: Date.now(),
+                    currentVersionId: generateId(),
+                    lastLlmContent: null,
+                    versions: [
+                     {...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`, source: 'USER'},
                      ...activeSection.versions
                    ]
                  });

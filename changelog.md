@@ -1,3 +1,18 @@
+## 2025-12-02 01:19 EST
+- Simplified diff views to a single unified style without LLM vs user attribution or legends, keeping standard additions/removals highlighting only.
+- Swapped the toolbar placement so “Insert Citation” sits with formatting controls and “Show/Hide Diff” lives on the right side of the editor header.
+
+## 2025-12-02 01:07 EST
+- Fixed diff attribution so user-typed text is not mislabeled as LLM output by favoring user changes when tokens overlap and tracking counts per change.
+- Updated the working draft diff toggle to read “Show Diff”/“Hide Diff” and added an inline hide control when viewing the diff.
+- **Still have errors**
+
+## 2025-12-01 23:53 EST
+- Added a working-draft diff toggle that highlights LLM vs user edits, plus a “Start New Version” action to snapshot the current draft and reset the diff baseline.
+- Extended version history with per-version diff toggles, source badges, and color-coded changes so each version can be compared against its predecessor.
+- Persisted new version metadata (baselines, last LLM output, sources) through the client normalization and SQLite API to keep frontend and backend in sync.
+***Errors with diff highlighting when user edits match LLM output remain; investigating a fix.***
+
 ## 2025-12-01 23:22 EST
 - Removed the unused AI figure generator panel, expanded figure cards with on-card replacement inputs plus full-size previews, and introduced a modal viewer so manual uploads are easier to inspect and edit without deleting an entry.
 
