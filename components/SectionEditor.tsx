@@ -390,6 +390,8 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 llmSnapshot={llmSnapshot}
                 title="Working Draft Diff"
                 subtitle={workingDiffSubtitle}
+                onClose={() => setShowWorkingDiff(false)}
+                closeLabel="Hide Diff"
             />
         ) : (
             <>
@@ -415,7 +417,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                             title="Toggle working draft diff"
                         >
                             {showWorkingDiff ? <EyeOff size={18} /> : <Eye size={18} />}
-                            Working Diff
+                            {showWorkingDiff ? 'Hide Diff' : 'Show Diff'}
                         </button>
                     </div>
                     

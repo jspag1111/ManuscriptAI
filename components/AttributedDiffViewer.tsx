@@ -10,6 +10,8 @@ interface AttributedDiffViewerProps {
   forceSource?: ChangeSource;
   title?: string;
   subtitle?: string;
+  onClose?: () => void;
+  closeLabel?: string;
 }
 
 const sourceStyles: Record<ChangeSource, { insert: string; delete: string; swatch: string }> = {
@@ -31,7 +33,9 @@ export const AttributedDiffViewer: React.FC<AttributedDiffViewerProps> = ({
   llmSnapshot,
   forceSource,
   title = 'Changes',
-  subtitle
+  subtitle,
+  onClose,
+  closeLabel
 }) => {
   const diffs = useMemo<AttributedDiffPart[]>(() => computeAttributedDiff(base, target, { llmSnapshot, forceSource }), [base, target, llmSnapshot, forceSource]);
 
@@ -67,17 +71,27 @@ export const AttributedDiffViewer: React.FC<AttributedDiffViewerProps> = ({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-1 text-indigo-700 font-medium">
-            <span className={`w-3 h-3 rounded ${sourceStyles.LLM.swatch}`}></span>
-            LLM
-            <span className="text-slate-400 ml-1">({stats.llmAdds})</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1 text-indigo-700 font-medium">
+              <span className={`w-3 h-3 rounded ${sourceStyles.LLM.swatch}`}></span>
+              LLM
+              <span className="text-slate-400 ml-1">({stats.llmAdds})</span>
+            </div>
+            <div className="flex items-center gap-1 text-emerald-700 font-medium">
+              <span className={`w-3 h-3 rounded ${sourceStyles.USER.swatch}`}></span>
+              User
+              <span className="text-slate-400 ml-1">({stats.userAdds})</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-emerald-700 font-medium">
-            <span className={`w-3 h-3 rounded ${sourceStyles.USER.swatch}`}></span>
-            User
-            <span className="text-slate-400 ml-1">({stats.userAdds})</span>
-          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              {closeLabel || 'Hide Diff'}
+            </button>
+          )}
         </div>
       </div>
 
