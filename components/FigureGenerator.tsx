@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { generateFigure } from '../services/geminiService';
+import React, { useRef, useState } from 'react';
 import { generateId } from '../services/storageService';
 import { FigureType, GeneratedFigure, Project } from '../types';
 import { Button } from './Button';
-import { Image, Download, Trash2, Upload } from 'lucide-react';
+import { Download, Trash2, Upload, Image as ImageIcon, X } from 'lucide-react';
 
 interface FigureGeneratorProps {
   project: Project;
@@ -32,8 +31,6 @@ const fileToBase64 = (file: File): Promise<string> =>
   });
 
 export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpdateProject }) => {
-  const [prompt, setPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [manualFigureType, setManualFigureType] = useState<FigureType>('figure');
   const [manualLabel, setManualLabel] = useState('');
   const [manualTitle, setManualTitle] = useState('');
@@ -42,39 +39,10 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
   const [manualImage, setManualImage] = useState<string | null>(null);
   const [manualImageName, setManualImageName] = useState('');
   const [isSavingManual, setIsSavingManual] = useState(false);
+  const [previewFigure, setPreviewFigure] = useState<GeneratedFigure | null>(null);
 
   const nextIndex = project.figures.length + 1;
   const manualPlaceholderLabel = defaultLabelForType(manualFigureType, nextIndex);
-
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
-    setIsGenerating(true);
-    try {
-      const base64 = await generateFigure(prompt);
-      const newFigure: GeneratedFigure = {
-        id: generateId(),
-        prompt,
-        base64,
-        createdAt: Date.now(),
-        title: '',
-        label: defaultLabelForType('figure', nextIndex),
-        description: '',
-        includeInWordCount: false,
-        figureType: 'figure',
-        sourceType: 'AI',
-      };
-      onUpdateProject({
-        ...project,
-        figures: [newFigure, ...project.figures],
-      });
-      setPrompt('');
-    } catch (error) {
-      console.error(error);
-      alert('Failed to generate figure. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const handleDelete = (id: string) => {
     onUpdateProject({
@@ -151,142 +119,142 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
     }
   };
 
+  const replaceInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const handleReplaceImage = async (figureId: string, file?: File) => {
+    if (!file) return;
+    try {
+      const encoded = await fileToBase64(file);
+      updateFigure(figureId, {
+        base64: encoded,
+        sourceType: 'UPLOAD',
+        createdAt: Date.now(),
+      });
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update the attachment. Please try again.');
+    } finally {
+      if (replaceInputs.current[figureId]) {
+        replaceInputs.current[figureId]!.value = '';
+      }
+    }
+  };
+
   return (
     <div className="h-full flex flex-col p-6 space-y-6 overflow-y-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-50 border border-slate-200 p-6 rounded-lg shadow-sm">
+      <form
+        onSubmit={handleAddManualFigure}
+        className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm space-y-4"
+      >
+        <div>
           <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
-            <Image size={20} />
-            AI Figure Generator
+            <Upload size={20} />
+            Add Existing Figure/Table
           </h3>
-          <p className="text-sm text-slate-500 mb-4">
-            Describe a chart, diagram, or illustration and we will draft an image to refine.
+          <p className="text-sm text-slate-500">
+            Upload the asset and complete its caption so it is ready for export.
           </p>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. A Kaplan-Meier survival curve with treatment vs placebo arms…"
-            className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[120px] text-sm"
-          />
-          <div className="mt-4 flex justify-end">
-            <Button onClick={handleGenerate} isLoading={isGenerating} disabled={!prompt.trim()}>
-              Generate Figure
-            </Button>
-          </div>
         </div>
 
-        <form
-          onSubmit={handleAddManualFigure}
-          className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm space-y-4"
-        >
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
-              <Upload size={20} />
-              Add Existing Figure/Table
-            </h3>
-            <p className="text-sm text-slate-500">
-              Upload an existing asset or capture table metadata so it is included during export.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="text-sm text-slate-700 flex flex-col gap-1">
-              Type
-              <select
-                className="border border-slate-300 rounded-md p-2 text-sm"
-                value={manualFigureType}
-                onChange={(e) => setManualFigureType(e.target.value as FigureType)}
-              >
-                <option value="figure">Figure</option>
-                <option value="table">Table</option>
-                <option value="supplemental">Supplemental</option>
-              </select>
-            </label>
-            <label className="text-sm text-slate-700 flex flex-col gap-1">
-              Label
-              <input
-                type="text"
-                placeholder={manualPlaceholderLabel}
-                value={manualLabel}
-                onChange={(e) => setManualLabel(e.target.value)}
-                className="border border-slate-300 rounded-md p-2 text-sm"
-              />
-            </label>
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="text-sm text-slate-700 flex flex-col gap-1">
-            Title
+            Type
+            <select
+              className="border border-slate-300 rounded-md p-2 text-sm"
+              value={manualFigureType}
+              onChange={(e) => setManualFigureType(e.target.value as FigureType)}
+            >
+              <option value="figure">Figure</option>
+              <option value="table">Table</option>
+              <option value="supplemental">Supplemental</option>
+            </select>
+          </label>
+          <label className="text-sm text-slate-700 flex flex-col gap-1">
+            Label
             <input
               type="text"
-              value={manualTitle}
-              onChange={(e) => setManualTitle(e.target.value)}
+              placeholder={manualPlaceholderLabel}
+              value={manualLabel}
+              onChange={(e) => setManualLabel(e.target.value)}
               className="border border-slate-300 rounded-md p-2 text-sm"
-              placeholder="e.g. CONSORT flow diagram"
             />
           </label>
+        </div>
 
-          <label className="text-sm text-slate-700 flex flex-col gap-1">
-            Description / Caption
-            <textarea
-              value={manualDescription}
-              onChange={(e) => setManualDescription(e.target.value)}
-              className="border border-slate-300 rounded-md p-2 text-sm min-h-[100px]"
-              placeholder="Describe the key takeaway or any notes required for submission."
-            />
-          </label>
+        <label className="text-sm text-slate-700 flex flex-col gap-1">
+          Title
+          <input
+            type="text"
+            value={manualTitle}
+            onChange={(e) => setManualTitle(e.target.value)}
+            className="border border-slate-300 rounded-md p-2 text-sm"
+            placeholder="e.g. CONSORT flow diagram"
+          />
+        </label>
 
-          <label className="text-sm text-slate-700 flex flex-col gap-1">
-            Attach Image (optional)
-            <input type="file" accept="image/*" className="text-sm" onChange={handleManualFileChange} />
-          </label>
+        <label className="text-sm text-slate-700 flex flex-col gap-1">
+          Description / Caption
+          <textarea
+            value={manualDescription}
+            onChange={(e) => setManualDescription(e.target.value)}
+            className="border border-slate-300 rounded-md p-2 text-sm min-h-[100px]"
+            placeholder="Describe the key takeaway or any notes required for submission."
+          />
+        </label>
 
-          {manualImage && (
-            <div className="border border-dashed border-slate-300 rounded-md p-3 flex items-center justify-between text-xs text-slate-600">
-              <span>{manualImageName || 'Attached image'}</span>
-              <button
-                type="button"
-                className="text-blue-600 hover:underline"
-                onClick={() => {
-                  setManualImage(null);
-                  setManualImageName('');
-                }}
-              >
-                Remove
-              </button>
-            </div>
-          )}
+        <label className="text-sm text-slate-700 flex flex-col gap-1">
+          Attach Image (optional)
+          <input type="file" accept="image/*" className="text-sm" onChange={handleManualFileChange} />
+        </label>
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={manualInclude}
-              onChange={(e) => setManualInclude(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            Count this caption text toward the project word count
-          </label>
-
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              isLoading={isSavingManual}
-              disabled={isSavingManual || (!manualImage && !manualDescription.trim() && !manualTitle.trim())}
+        {manualImage && (
+          <div className="border border-dashed border-slate-300 rounded-md p-3 flex items-center justify-between text-xs text-slate-600">
+            <span>{manualImageName || 'Attached image'}</span>
+            <button
+              type="button"
+              className="text-blue-600 hover:underline"
+              onClick={() => {
+                setManualImage(null);
+                setManualImageName('');
+              }}
             >
-              Add Figure/Table
-            </Button>
+              Remove
+            </button>
           </div>
-        </form>
-      </div>
+        )}
+
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={manualInclude}
+            onChange={(e) => setManualInclude(e.target.checked)}
+            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          Count this caption text toward the project word count
+        </label>
+
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            isLoading={isSavingManual}
+            disabled={isSavingManual || (!manualImage && !manualDescription.trim() && !manualTitle.trim())}
+          >
+            Add Figure/Table
+          </Button>
+        </div>
+      </form>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-800">Project Figures & Tables</h3>
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <ImageIcon size={18} /> Project Figures & Tables
+          </h3>
           <span className="text-sm text-slate-500">{project.figures.length} total</span>
         </div>
 
         {project.figures.length === 0 && (
           <div className="border border-dashed border-slate-200 rounded-lg p-8 text-center text-slate-400">
-            No figures or tables yet. Generate one or upload an existing asset.
+            No figures or tables yet. Upload one to get started.
           </div>
         )}
 
@@ -301,17 +269,43 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
                 </div>
 
                 {fig.base64 ? (
-                  <div className="bg-slate-50 flex items-center justify-center p-4">
+                  <div className="bg-slate-50 flex flex-col items-center justify-center p-4 gap-2">
                     <img
                       src={fig.base64}
                       alt={fig.title || fig.prompt || fig.label || 'Figure preview'}
-                      className="max-h-48 object-contain"
+                      className="max-h-48 object-contain cursor-zoom-in"
+                      onClick={() => setPreviewFigure(fig)}
                     />
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100"
+                        onClick={() => setPreviewFigure(fig)}
+                      >
+                        View Full Size
+                      </button>
+                      <label className="px-2 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer">
+                        Replace Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          ref={(el) => (replaceInputs.current[fig.id] = el)}
+                          onChange={(e) => handleReplaceImage(fig.id, e.target.files?.[0])}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-50 flex items-center justify-center p-6 text-xs text-slate-400">
+                  <label className="bg-slate-50 flex flex-col items-center justify-center p-6 text-xs text-slate-400 gap-2 cursor-pointer">
                     No image attached
-                  </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="text-sm"
+                      onChange={(e) => handleReplaceImage(fig.id, e.target.files?.[0])}
+                    />
+                  </label>
                 )}
 
                 <div className="p-4 space-y-3 flex-1">
@@ -392,6 +386,36 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
           })}
         </div>
       </div>
+
+      {previewFigure?.base64 && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto relative">
+            <button
+              className="absolute top-3 right-3 text-slate-500 hover:text-slate-800"
+              onClick={() => setPreviewFigure(null)}
+            >
+              <X size={20} />
+            </button>
+            <div className="p-4 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">{previewFigure.label}</p>
+                  {previewFigure.title && <p className="text-xs text-slate-500">{previewFigure.title}</p>}
+                </div>
+                <span className="text-xs uppercase tracking-wide text-slate-400">{figureTypeLabel(previewFigure.figureType)}</span>
+              </div>
+              <div className="bg-slate-50 rounded-md p-4 flex justify-center">
+                <img src={previewFigure.base64} alt={previewFigure.label} className="max-h-[70vh] object-contain" />
+              </div>
+              {previewFigure.description && (
+                <p className="text-xs text-slate-500">
+                  <strong>Caption:</strong> {previewFigure.description}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

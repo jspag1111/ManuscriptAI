@@ -1,3 +1,6 @@
+## 2025-12-01 23:22 EST
+- Removed the unused AI figure generator panel, expanded figure cards with on-card replacement inputs plus full-size previews, and introduced a modal viewer so manual uploads are easier to inspect and edit without deleting an entry.
+
 ## 2025-12-01 23:15 EST
 - Fixed a Vite build error in `exportService` by removing stray escaped template literals inside the DOCX figure-caption builder so the app starts cleanly again.
 
