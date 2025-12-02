@@ -2,7 +2,14 @@
 
 import { Project } from '../types';
 
-const STORAGE_KEY = 'manuscript_ai_projects_v1';
+const API_BASE = '/api';
+
+const DEFAULT_SETTINGS = {
+  targetJournal: '',
+  wordCountTarget: 3000,
+  formattingRequirements: '',
+  tone: 'Academic and formal',
+};
 
 // Helper for safe ID generation (fallback for non-secure contexts or missing API)
 export const generateId = (): string => {
@@ -19,56 +26,52 @@ export const generateId = (): string => {
   });
 };
 
-export const getProjects = (): Project[] => {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    const projects = data ? JSON.parse(data) : [];
-    
-    // Migration: Ensure new fields exist on old projects
-    return projects.map((p: any) => ({
-      ...p,
-      manuscriptMetadata: p.manuscriptMetadata || { authors: [], affiliations: [] },
-      // Ensure settings exists if it was missing in very old versions
-      settings: p.settings || {
-        targetJournal: '',
-        wordCountTarget: 3000,
-        formattingRequirements: '',
-        tone: 'Academic and formal',
-      },
-      // Ensure sections have useReferences flag (default true)
-      sections: Array.isArray(p.sections) ? p.sections.map((s: any) => ({
-        ...s,
-        useReferences: s.useReferences !== undefined ? s.useReferences : true
-      })) : []
-    }));
-  } catch (e) {
-    console.error("Failed to load projects", e);
-    return [];
+const normalizeProject = (project: Project): Project => ({
+  ...project,
+  manuscriptMetadata: project.manuscriptMetadata || { authors: [], affiliations: [] },
+  settings: project.settings || { ...DEFAULT_SETTINGS },
+  sections: Array.isArray(project.sections) ? project.sections.map((s: any) => ({
+    ...s,
+    useReferences: s.useReferences !== undefined ? s.useReferences : true
+  })) : [],
+  references: Array.isArray(project.references) ? project.references : [],
+  figures: Array.isArray(project.figures) ? project.figures : [],
+});
+
+const handleResponse = async (response: Response) => {
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'API request failed');
   }
+  return response.json();
 };
 
-export const saveProject = (project: Project): void => {
-  const projects = getProjects();
-  const index = projects.findIndex(p => p.id === project.id);
-  
-  if (index >= 0) {
-    projects[index] = { ...project, lastModified: Date.now() };
-  } else {
-    projects.push({ ...project, lastModified: Date.now() });
-  }
-  
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  } catch (e) {
-    console.error("Failed to save project - quota might be exceeded", e);
-    // In a real app, handle quota exceeded
-  }
+export const getProjects = async (): Promise<Project[]> => {
+  const response = await fetch(`${API_BASE}/projects`);
+  const data = await handleResponse(response);
+  return data.map((p: Project) => normalizeProject(p));
 };
 
-export const deleteProject = (id: string): void => {
-  const projects = getProjects();
-  const filtered = projects.filter(p => p.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+export const saveProject = async (project: Project): Promise<Project> => {
+  const response = await fetch(`${API_BASE}/projects`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(project)
+  });
+
+  const saved = await handleResponse(response);
+  return normalizeProject(saved);
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/projects/${id}`, {
+    method: 'DELETE'
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete project');
+  }
 };
 
 export const createNewProject = (title: string, description: string): Project => {
@@ -78,12 +81,7 @@ export const createNewProject = (title: string, description: string): Project =>
     description,
     created: Date.now(),
     lastModified: Date.now(),
-    settings: {
-      targetJournal: '',
-      wordCountTarget: 3000,
-      formattingRequirements: '',
-      tone: 'Academic and formal',
-    },
+    settings: { ...DEFAULT_SETTINGS },
     manuscriptMetadata: {
         authors: [],
         affiliations: []

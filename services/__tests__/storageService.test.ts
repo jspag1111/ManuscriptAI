@@ -1,9 +1,16 @@
+import { vi } from 'vitest';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '../storageService';
-import type { Project, Section } from '../../types';
+import type { Project } from '../../types';
+
+const createFetchResponse = (data: any, ok = true): Response => ({
+  ok,
+  json: async () => data,
+  text: async () => (typeof data === 'string' ? data : JSON.stringify(data)),
+}) as unknown as Response;
 
 describe('storageService', () => {
-  beforeEach(() => {
-    localStorage.clear();
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('generates a reasonably unique id', () => {
@@ -26,41 +33,42 @@ describe('storageService', () => {
     expect(project.id).toBeTruthy();
   });
 
-  it('saves, retrieves, and deletes projects in localStorage', () => {
-    const base = createNewProject('Persisted', 'Check');
-    const section: Section = {
-      id: 'section-1',
-      title: 'Intro',
-      content: 'Body',
-      userNotes: 'Notes',
-      versions: [],
+  it('fetches projects from the API and normalizes defaults', async () => {
+    const mockProject: Partial<Project> = {
+      id: 'project-1',
+      title: 'Persisted',
+      description: 'Check',
+      created: 1,
       lastModified: 1,
+      sections: [
+        { id: 'section-1', title: 'Intro', content: 'Body', userNotes: 'Notes', versions: [], lastModified: 1 }
+      ]
     };
 
-    const project: Project = { ...base, sections: [section] };
-    saveProject(project);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse([mockProject])));
+    const projects = await getProjects();
 
-    const stored = getProjects()[0];
-    expect(stored.sections[0].useReferences).toBe(true);
-    expect(stored.manuscriptMetadata).toBeDefined();
-
-    deleteProject(project.id);
-    expect(getProjects()).toHaveLength(0);
+    expect(fetch).toHaveBeenCalledWith('/api/projects');
+    expect(projects[0].manuscriptMetadata).toEqual({ authors: [], affiliations: [] });
+    expect(projects[0].sections[0].useReferences).toBe(true);
   });
 
-  it('updates existing projects when saving', async () => {
+  it('posts project changes to the API and normalizes response', async () => {
     const project = createNewProject('Update', 'Project');
-    saveProject(project);
 
-    const firstSaved = getProjects()[0];
-    const initialModified = firstSaved.lastModified;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse({ ...project, references: undefined })));
+    const saved = await saveProject(project);
 
-    const updated: Project = { ...firstSaved, title: 'Updated Title' };
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    saveProject(updated);
+    expect(fetch).toHaveBeenCalledWith('/api/projects', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify(project)
+    }));
+    expect(saved.references).toEqual([]);
+  });
 
-    const retrieved = getProjects()[0];
-    expect(retrieved.title).toBe('Updated Title');
-    expect(retrieved.lastModified).toBeGreaterThan(initialModified);
+  it('calls delete endpoint', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse({}, true)));
+    await deleteProject('delete-me');
+    expect(fetch).toHaveBeenCalledWith('/api/projects/delete-me', expect.objectContaining({ method: 'DELETE' }));
   });
 });

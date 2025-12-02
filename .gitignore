@@ -25,3 +25,8 @@ dist-ssr
 
 .env.local
 .venv
+
+# Local database artifacts
+data/*.sqlite
+data/*.sqlite-*
+data/*.db

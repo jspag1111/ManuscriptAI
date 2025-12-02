@@ -31,10 +31,30 @@ const App: React.FC = () => {
   const [editingTitle, setEditingTitle] = useState('');
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [projectError, setProjectError] = useState<string | null>(null);
+
+  const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
+  const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
   
   // Load initial data
   useEffect(() => {
-    setProjects(getProjects());
+    let isMounted = true;
+    const load = async () => {
+      setProjectError(null);
+      try {
+        const loaded = await getProjects();
+        if (!isMounted) return;
+        setProjects(sortProjects(loaded));
+      } catch (e) {
+        console.error('Failed to load projects from database', e);
+        if (isMounted) setProjectError('Failed to load projects from local database.');
+      } finally {
+        if (isMounted) setIsLoadingProjects(false);
+      }
+    };
+    load();
+    return () => { isMounted = false; };
   }, []);
 
   const handleCreateProjectClick = () => {
@@ -42,7 +62,7 @@ const App: React.FC = () => {
     setIsCreatingProject(true);
   };
 
-  const handleConfirmCreateProject = (e?: React.FormEvent) => {
+  const handleConfirmCreateProject = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newProjectTitle.trim()) return;
 
@@ -58,26 +78,50 @@ const App: React.FC = () => {
       useReferences: true
     }));
     
-    saveProject(newProject);
-    setProjects(getProjects());
-    setCurrentProject(newProject);
-    setActiveSectionId(newProject.sections[0].id);
-    setView(AppView.PROJECT);
-    setIsCreatingProject(false);
+    try {
+      const saved = await saveProject(newProject);
+      setProjects(prev => upsertProject(prev, saved));
+      setCurrentProject(saved);
+      setActiveSectionId(saved.sections[0]?.id || null);
+      setView(AppView.PROJECT);
+    } catch (err) {
+      console.error('Failed to create project', err);
+      alert('Failed to create project. Please try again.');
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
-  const handleDeleteProject = (e: React.MouseEvent, id: string) => {
+  const handleDeleteProject = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if(confirm("Are you sure? This cannot be undone.")) {
-      deleteProject(id);
-      setProjects(getProjects());
+      try {
+        await deleteProject(id);
+        setProjects(prev => prev.filter(p => p.id !== id));
+        if (currentProject?.id === id) {
+          setCurrentProject(null);
+          setActiveSectionId(null);
+          setView(AppView.DASHBOARD);
+        }
+      } catch (err) {
+        console.error('Failed to delete project', err);
+        alert('Failed to delete project.');
+      }
     }
   };
 
   const handleUpdateProject = (updatedProject: Project) => {
-    setCurrentProject(updatedProject);
-    saveProject(updatedProject);
-    setProjects(getProjects()); // Sync list
+    const projectWithTimestamp = { ...updatedProject, lastModified: Date.now() };
+    setCurrentProject(projectWithTimestamp);
+    saveProject(projectWithTimestamp)
+      .then((saved) => {
+        setCurrentProject(saved);
+        setProjects(prev => upsertProject(prev, saved));
+      })
+      .catch((err) => {
+        console.error('Failed to save project', err);
+        alert('Failed to save project changes.');
+      });
   };
 
   const handleUpdateSection = (updatedSection: Section) => {
@@ -178,8 +222,20 @@ const App: React.FC = () => {
             </Button>
           </header>
 
+          {projectError && (
+            <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700">
+              {projectError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map(project => (
+            {isLoadingProjects && (
+              <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                Loading projects from local database...
+              </div>
+            )}
+
+            {!isLoadingProjects && projects.map(project => (
               <div 
                 key={project.id} 
                 onClick={() => {
@@ -206,7 +262,7 @@ const App: React.FC = () => {
               </div>
             ))}
             
-            {projects.length === 0 && (
+            {!isLoadingProjects && projects.length === 0 && (
               <div className="col-span-full py-20 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
                 <p>No projects yet. Create one to get started.</p>
               </div>
