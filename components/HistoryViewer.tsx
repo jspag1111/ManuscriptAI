@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChangeSource, Section, SectionVersion } from '../types';
+import { Section, SectionVersion } from '../types';
 import { Button } from './Button';
 import { ArrowLeft, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { AttributedDiffViewer } from './AttributedDiffViewer';
@@ -20,8 +20,6 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
     ? section.versions[selectedIndex + 1]?.content ?? section.currentVersionBase
     : section.versions[0]?.content ?? section.currentVersionBase;
   const displayContent = selectedVersion ? selectedVersion.content : section.content;
-  const currentSource: ChangeSource = section.lastLlmContent && section.lastLlmContent === section.content ? 'LLM' : 'USER';
-  const selectedSource: ChangeSource = selectedVersion ? (selectedVersion.source || 'USER') : currentSource;
   const hasComparison = selectedVersion
     ? !!section.versions[selectedIndex + 1] || !!section.currentVersionBase
     : section.versions.length > 0 || !!section.currentVersionBase;
@@ -30,12 +28,6 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
   useEffect(() => {
     setShowDiff(false);
   }, [selectedVersionId]);
-
-  const renderSourceBadge = (source: ChangeSource) => (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${source === 'LLM' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-      {source === 'LLM' ? 'LLM' : 'User'}
-    </span>
-  );
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -48,7 +40,6 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
         </div>
         <div className="flex items-center gap-3 text-xs text-slate-500">
           <span>Showing: {selectedVersion ? 'Saved version' : 'Current draft'}</span>
-          {renderSourceBadge(selectedSource)}
         </div>
       </div>
 
@@ -61,9 +52,8 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
                 onClick={() => setSelectedVersionId('')}
              >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-medium text-sm text-slate-800 flex items-center gap-2">
+                  <span className="font-medium text-sm text-slate-800">
                     Current Draft
-                    {renderSourceBadge(currentSource)}
                   </span>
                   <span className="text-xs text-slate-400">Now</span>
                 </div>
@@ -77,9 +67,8 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
                 onClick={() => setSelectedVersionId(v.id)}
               >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-medium text-sm text-slate-800 flex items-center gap-2">
+                  <span className="font-medium text-sm text-slate-800">
                     {new Date(v.timestamp).toLocaleDateString()}
-                    {renderSourceBadge(v.source || 'USER')}
                   </span>
                   <span className="text-xs text-slate-400">
                      {new Date(v.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -114,8 +103,6 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
                 <AttributedDiffViewer
                   base={previousContent ?? ''}
                   target={displayContent}
-                  llmSnapshot={!selectedVersion ? section.lastLlmContent ?? null : undefined}
-                  forceSource={selectedVersion ? selectedSource : undefined}
                   title="Version Diff"
                   subtitle={hasChanges ? 'Compared to prior version' : 'No changes since prior version'}
                 />

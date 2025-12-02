@@ -1,51 +1,31 @@
 import React, { useMemo } from 'react';
-import { ChangeSource } from '../types';
-import { AttributedDiffPart, computeAttributedDiff } from '../utils/diffUtils';
+import { computeDiff, DiffPart } from '../utils/diffUtils';
 import { Split } from 'lucide-react';
 
 interface AttributedDiffViewerProps {
   base: string;
   target: string;
-  llmSnapshot?: string | null;
-  forceSource?: ChangeSource;
   title?: string;
   subtitle?: string;
   onClose?: () => void;
   closeLabel?: string;
 }
 
-const sourceStyles: Record<ChangeSource, { insert: string; delete: string; swatch: string }> = {
-  LLM: {
-    insert: 'bg-indigo-100 text-indigo-800 decoration-indigo-300',
-    delete: 'bg-indigo-50 text-indigo-600 decoration-indigo-300',
-    swatch: 'bg-indigo-500'
-  },
-  USER: {
-    insert: 'bg-emerald-100 text-emerald-800 decoration-emerald-300',
-    delete: 'bg-amber-50 text-amber-700 decoration-amber-300',
-    swatch: 'bg-emerald-500'
-  }
-};
-
 export const AttributedDiffViewer: React.FC<AttributedDiffViewerProps> = ({
   base,
   target,
-  llmSnapshot,
-  forceSource,
   title = 'Changes',
   subtitle,
   onClose,
   closeLabel
 }) => {
-  const diffs = useMemo<AttributedDiffPart[]>(() => computeAttributedDiff(base, target, { llmSnapshot, forceSource }), [base, target, llmSnapshot, forceSource]);
+  const diffs = useMemo<DiffPart[]>(() => computeDiff(base, target), [base, target]);
 
   const stats = useMemo(() => {
-    const totals = { additions: 0, deletions: 0, llmAdds: 0, userAdds: 0 };
+    const totals = { additions: 0, deletions: 0 };
     for (const part of diffs) {
       if (part.type === 'insert') {
         totals.additions += 1;
-        if (part.source === 'LLM') totals.llmAdds += 1;
-        if (part.source === 'USER') totals.userAdds += 1;
       }
       if (part.type === 'delete') {
         totals.deletions += 1;
@@ -71,28 +51,14 @@ export const AttributedDiffViewer: React.FC<AttributedDiffViewerProps> = ({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1 text-indigo-700 font-medium">
-              <span className={`w-3 h-3 rounded ${sourceStyles.LLM.swatch}`}></span>
-              LLM
-              <span className="text-slate-400 ml-1">({stats.llmAdds})</span>
-            </div>
-            <div className="flex items-center gap-1 text-emerald-700 font-medium">
-              <span className={`w-3 h-3 rounded ${sourceStyles.USER.swatch}`}></span>
-              User
-              <span className="text-slate-400 ml-1">({stats.userAdds})</span>
-            </div>
-          </div>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
-            >
-              {closeLabel || 'Hide Diff'}
-            </button>
-          )}
-        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            {closeLabel || 'Hide Diff'}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 font-serif text-lg leading-relaxed text-slate-800 whitespace-pre-wrap">
@@ -101,17 +67,15 @@ export const AttributedDiffViewer: React.FC<AttributedDiffViewerProps> = ({
             return <span key={index}>{part.value}</span>;
           }
           if (part.type === 'insert') {
-            const style = part.source ? sourceStyles[part.source].insert : 'bg-emerald-50 text-emerald-800';
             return (
-              <span key={index} className={`${style} decoration-2 underline-offset-2`}>
+              <span key={index} className="bg-green-100 text-green-800 decoration-green-300 underline decoration-2 underline-offset-2">
                 {part.value}
               </span>
             );
           }
           if (part.type === 'delete') {
-            const style = part.source ? sourceStyles[part.source].delete : 'bg-amber-50 text-amber-700';
             return (
-              <span key={index} className={`${style} line-through decoration-2 decoration-wavy`}>
+              <span key={index} className="bg-red-50 text-red-600 line-through decoration-red-300 decoration-2 decoration-wavy">
                 {part.value}
               </span>
             );
@@ -122,16 +86,12 @@ export const AttributedDiffViewer: React.FC<AttributedDiffViewerProps> = ({
 
       <div className="h-10 border-t border-slate-200 flex items-center px-4 bg-slate-50 text-[11px] text-slate-500 gap-4 shrink-0">
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-indigo-100 border border-indigo-200 block"></span>
-          <span>LLM additions</span>
+          <span className="w-3 h-3 rounded bg-green-100 border border-green-200 block"></span>
+          <span>Additions</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 block"></span>
-          <span>User additions</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 block relative">
-            <span className="absolute inset-x-0 top-1/2 h-px bg-amber-500"></span>
+          <span className="w-3 h-3 rounded bg-red-50 border border-red-200 block relative">
+            <span className="absolute inset-x-0 top-1/2 h-px bg-red-500"></span>
           </span>
           <span>Removed text</span>
         </div>

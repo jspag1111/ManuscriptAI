@@ -1,9 +1,6 @@
 
-import { ChangeSource } from '../types';
-
 export type DiffType = 'equal' | 'insert' | 'delete';
 export type DiffPart = { type: DiffType; value: string };
-export type AttributedDiffPart = DiffPart & { source?: ChangeSource };
 
 export const computeDiff = (text1: string, text2: string): DiffPart[] => {
   // Split into words but preserve whitespace/punctuation for reconstruction
@@ -50,72 +47,4 @@ export const computeDiff = (text1: string, text2: string): DiffPart[] => {
   }
   
   return diffs.reverse();
-};
-
-interface AttributedOptions {
-  llmSnapshot?: string | null;
-  forceSource?: ChangeSource;
-}
-
-/**
- * Computes a diff and tags inserted/deleted parts with the source (LLM or USER).
- * - If forceSource is provided, all inserts/deletes are tagged with that source.
- * - If llmSnapshot is provided, we compare base->llmSnapshot (LLM edits) and
- *   llmSnapshot->target (user edits) to attribute changes in the final diff.
- */
-export const computeAttributedDiff = (
-  base: string,
-  target: string,
-  options: AttributedOptions = {}
-): AttributedDiffPart[] => {
-  const rawDiff = computeDiff(base || '', target || '');
-
-  if (options.forceSource) {
-    return rawDiff.map(part => part.type === 'equal' ? part : { ...part, source: options.forceSource });
-  }
-
-  const llmSnapshot = options.llmSnapshot ?? null;
-  const llmDiff = llmSnapshot ? computeDiff(base || '', llmSnapshot) : [];
-  const userBaseline = llmSnapshot ?? base;
-  const userDiff = computeDiff(userBaseline || '', target || '');
-
-  const buildCountMap = (diff: DiffPart[], type: DiffType) => {
-    const map = new Map<string, number>();
-    diff.forEach(part => {
-      if (part.type === type) {
-        map.set(part.value, (map.get(part.value) || 0) + 1);
-      }
-    });
-    return map;
-  };
-
-  const consume = (map: Map<string, number>, value: string) => {
-    const current = map.get(value) || 0;
-    if (current > 0) {
-      map.set(value, current - 1);
-      return true;
-    }
-    return false;
-  };
-
-  const llmInserted = buildCountMap(llmDiff, 'insert');
-  const llmDeleted = buildCountMap(llmDiff, 'delete');
-  const userInserted = buildCountMap(userDiff, 'insert');
-  const userDeleted = buildCountMap(userDiff, 'delete');
-
-  return rawDiff.map(part => {
-    if (part.type === 'equal') return part;
-
-    if (part.type === 'insert') {
-      if (consume(userInserted, part.value)) return { ...part, source: 'USER' };
-      if (consume(llmInserted, part.value)) return { ...part, source: 'LLM' };
-    }
-
-    if (part.type === 'delete') {
-      if (consume(userDeleted, part.value)) return { ...part, source: 'USER' };
-      if (consume(llmDeleted, part.value)) return { ...part, source: 'LLM' };
-    }
-
-    return { ...part, source: 'USER' };
-  });
 };

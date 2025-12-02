@@ -57,7 +57,6 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const contentStats = useMemo(() => calculateTextStats(content), [content]);
   const workingBase = section.currentVersionBase !== undefined ? section.currentVersionBase : section.content;
   const versionStartedAt = section.currentVersionStartedAt || section.lastModified;
-  const llmSnapshot = section.lastLlmContent ?? null;
   const workingDiffSubtitle = versionStartedAt ? `Since ${new Date(versionStartedAt).toLocaleString()}` : undefined;
 
   // Sync internal state if section changes prop
@@ -385,13 +384,12 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
             />
         ) : showWorkingDiff ? (
             <AttributedDiffViewer 
-                base={workingBase} 
-                target={content} 
-                llmSnapshot={llmSnapshot}
-                title="Working Draft Diff"
-                subtitle={workingDiffSubtitle}
-                onClose={() => setShowWorkingDiff(false)}
-                closeLabel="Hide Diff"
+              base={workingBase} 
+              target={content} 
+              title="Working Draft Diff"
+              subtitle={workingDiffSubtitle}
+              onClose={() => setShowWorkingDiff(false)}
+              closeLabel="Hide Diff"
             />
         ) : (
             <>
@@ -410,30 +408,30 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                             {showCitations ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                             Format Citations
                         </button>
-                        <button
-                            onClick={() => setShowWorkingDiff(!showWorkingDiff)}
-                            disabled={isReviewing}
-                            className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors ${showWorkingDiff ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-                            title="Toggle working draft diff"
+                        <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            onClick={() => {
+                                setShowCitationModal(true);
+                                setCitationSearch('');
+                            }} 
+                            title="Insert Citation"
+                            className="flex items-center gap-1 text-slate-600 h-8"
                         >
-                            {showWorkingDiff ? <EyeOff size={18} /> : <Eye size={18} />}
-                            {showWorkingDiff ? 'Hide Diff' : 'Show Diff'}
-                        </button>
+                            <Quote size={14} />
+                            <span className="text-xs">Insert Citation</span>
+                        </Button>
                     </div>
                     
-                    <Button 
-                        size="sm" 
-                        variant="secondary" 
-                        onClick={() => {
-                            setShowCitationModal(true);
-                            setCitationSearch('');
-                        }} 
-                        title="Insert Citation"
-                        className="flex items-center gap-1 text-slate-600"
+                    <button
+                        onClick={() => setShowWorkingDiff(!showWorkingDiff)}
+                        disabled={isReviewing}
+                        className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors border ${showWorkingDiff ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300 hover:bg-slate-100'}`}
+                        title="Toggle working draft diff"
                     >
-                        <Quote size={14} />
-                        <span className="text-xs">Insert Citation</span>
-                    </Button>
+                        {showWorkingDiff ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showWorkingDiff ? 'Hide Diff' : 'Show Diff'}
+                    </button>
                 </div>
 
                 {/* Rich Editor Component */}
