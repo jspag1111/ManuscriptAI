@@ -32,6 +32,33 @@ const ensureId = (project) => {
   });
 };
 
+const FIGURE_TYPE_VALUES = new Set(['figure', 'table', 'supplemental']);
+
+const sanitizeFigureType = (value) => {
+  if (FIGURE_TYPE_VALUES.has(value)) {
+    return value;
+  }
+  return 'figure';
+};
+
+const normalizeFigure = (figure = {}, index = 0) => {
+  const figureType = sanitizeFigureType(figure.figureType);
+  const defaultLabelPrefix = figureType === 'table' ? 'Table' : 'Figure';
+
+  return {
+    id: figure.id || ensureId(figure),
+    prompt: figure.prompt || '',
+    base64: figure.base64,
+    createdAt: figure.createdAt || Date.now(),
+    title: figure.title || '',
+    label: (figure.label || '').trim() || `${defaultLabelPrefix} ${index + 1}`,
+    description: figure.description || '',
+    includeInWordCount: figure.includeInWordCount === true,
+    figureType,
+    sourceType: figure.sourceType === 'UPLOAD' ? 'UPLOAD' : 'AI',
+  };
+};
+
 const normalizeProject = (project = {}) => {
   const fallbackTime = Date.now();
   return {
@@ -48,7 +75,7 @@ const normalizeProject = (project = {}) => {
       }))
       : [],
     references: Array.isArray(project.references) ? project.references : [],
-    figures: Array.isArray(project.figures) ? project.figures : [],
+    figures: Array.isArray(project.figures) ? project.figures.map((fig, index) => normalizeFigure(fig, index)) : [],
   };
 };
 

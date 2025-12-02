@@ -74,11 +74,20 @@ export interface Project {
   figures: GeneratedFigure[];
 }
 
+export type FigureType = 'figure' | 'table' | 'supplemental';
+export type FigureSourceType = 'AI' | 'UPLOAD';
+
 export interface GeneratedFigure {
   id: string;
-  prompt: string;
-  base64: string;
+  prompt?: string;
+  base64?: string;
   createdAt: number;
+  title: string;
+  label: string;
+  description: string;
+  includeInWordCount: boolean;
+  figureType: FigureType;
+  sourceType: FigureSourceType;
 }
 
 export interface PaperSearchResult {

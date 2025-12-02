@@ -42,6 +42,9 @@ describe('storageService', () => {
       lastModified: 1,
       sections: [
         { id: 'section-1', title: 'Intro', content: 'Body', userNotes: 'Notes', versions: [], lastModified: 1 }
+      ],
+      figures: [
+        { id: 'fig-1', base64: 'data:image/png;base64,abc', createdAt: 1 }
       ]
     };
 
@@ -51,6 +54,12 @@ describe('storageService', () => {
     expect(fetch).toHaveBeenCalledWith('/api/projects');
     expect(projects[0].manuscriptMetadata).toEqual({ authors: [], affiliations: [] });
     expect(projects[0].sections[0].useReferences).toBe(true);
+    expect(projects[0].figures[0]).toMatchObject({
+      label: 'Figure 1',
+      includeInWordCount: false,
+      figureType: 'figure',
+      sourceType: 'AI',
+    });
   });
 
   it('posts project changes to the API and normalizes response', async () => {

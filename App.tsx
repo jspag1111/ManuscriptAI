@@ -35,16 +35,21 @@ const App: React.FC = () => {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
   const projectTotals = useMemo(() => {
+    const empty = {
+      words: 0,
+      charsWithSpaces: 0,
+      charsWithoutSpaces: 0,
+      totalSections: 0,
+      includedSections: 0,
+      figureWords: 0,
+      totalFigures: 0,
+      includedFigures: 0,
+    };
     if (!currentProject) {
-      return {
-        words: 0,
-        charsWithSpaces: 0,
-        charsWithoutSpaces: 0,
-        totalSections: 0,
-        includedSections: 0,
-      };
+      return empty;
     }
-    return currentProject.sections.reduce(
+
+    const sectionTotals = currentProject.sections.reduce(
       (acc, section) => {
         const stats = calculateTextStats(section.content);
         const include = section.includeInWordCount !== false;
@@ -65,6 +70,39 @@ const App: React.FC = () => {
         includedSections: 0,
       }
     );
+
+    const figureTotals = currentProject.figures.reduce(
+      (acc, fig) => {
+        acc.totalFigures += 1;
+        if (fig.includeInWordCount) {
+          const text = [fig.label, fig.title, fig.description].filter(Boolean).join(' ').trim();
+          const stats = calculateTextStats(text);
+          acc.words += stats.words;
+          acc.charsWithSpaces += stats.charsWithSpaces;
+          acc.charsWithoutSpaces += stats.charsWithoutSpaces;
+          acc.includedFigures += 1;
+        }
+        return acc;
+      },
+      {
+        words: 0,
+        charsWithSpaces: 0,
+        charsWithoutSpaces: 0,
+        totalFigures: 0,
+        includedFigures: 0,
+      }
+    );
+
+    return {
+      words: sectionTotals.words + figureTotals.words,
+      charsWithSpaces: sectionTotals.charsWithSpaces + figureTotals.charsWithSpaces,
+      charsWithoutSpaces: sectionTotals.charsWithoutSpaces + figureTotals.charsWithoutSpaces,
+      totalSections: sectionTotals.totalSections,
+      includedSections: sectionTotals.includedSections,
+      figureWords: figureTotals.words,
+      totalFigures: figureTotals.totalFigures,
+      includedFigures: figureTotals.includedFigures,
+    };
   }, [currentProject]);
 
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
@@ -249,6 +287,17 @@ const App: React.FC = () => {
       handleUpdateSection({
           ...target,
           includeInWordCount: !include
+      });
+  };
+
+  const handleToggleFigureInclusion = (id: string) => {
+      if (!currentProject) return;
+      const updatedFigures = currentProject.figures.map(fig =>
+        fig.id === id ? { ...fig, includeInWordCount: !fig.includeInWordCount } : fig
+      );
+      handleUpdateProject({
+        ...currentProject,
+        figures: updatedFigures
       });
   };
 
@@ -511,6 +560,12 @@ const App: React.FC = () => {
                    <dt className="text-slate-500">Words</dt>
                    <dd className="font-semibold text-slate-800">{projectTotals.words.toLocaleString()}</dd>
                  </div>
+                 {currentProject.figures.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-500">+ Figure/Table Text</dt>
+                    <dd className="font-semibold text-slate-700">{projectTotals.figureWords.toLocaleString()}</dd>
+                  </div>
+                 )}
                  <div className="flex items-center justify-between">
                    <dt className="text-slate-500">Chars (with spaces)</dt>
                    <dd className="font-semibold text-slate-800">{projectTotals.charsWithSpaces.toLocaleString()}</dd>
@@ -542,6 +597,36 @@ const App: React.FC = () => {
                    )}
                  </div>
                </div>
+               {currentProject.figures.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Figure/Table Captions
+                    <span className="ml-1 font-normal text-slate-400">
+                      ({projectTotals.includedFigures}/{currentProject.figures.length} counted)
+                    </span>
+                  </p>
+                  <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                    {currentProject.figures.map((figure, index) => {
+                      const label = figure.label || (figure.figureType === 'table'
+                        ? `Table ${index + 1}`
+                        : figure.figureType === 'supplemental'
+                          ? `Supplemental ${index + 1}`
+                          : `Figure ${index + 1}`);
+                      return (
+                        <label key={figure.id} className="flex items-center gap-2 text-xs text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={figure.includeInWordCount}
+                            onChange={() => handleToggleFigureInclusion(figure.id)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="truncate">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+               )}
              </div>
           </div>
         </div>

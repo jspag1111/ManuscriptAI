@@ -1,3 +1,8 @@
+## 2025-12-01 22:57 EST
+- Rebuilt the Figures tool so users can upload existing figures/tables, title/label them, add captions, toggle caption word-count inclusion, and manage the metadata inline alongside AI-generated assets.
+- Added figure/table caption contributions to the global word/character totals with sidebar toggles, and persisted the new metadata through the storage service plus SQLite backend normalization.
+- Updated the DOCX export builder to emit the richer figure/table captions (including manual uploads with optional images) so generated documents stay in sync with the new workflow.
+
 ## 2025-12-01 22:32 EST
 - Added shared text metrics utilities plus an include-in-counts flag for sections to persist selection state.
 - Updated the Section Editor footer to show words, characters with spaces, and characters without spaces for each section.
