@@ -1,6 +1,9 @@
 
+import { ChangeSource } from '../types';
+
 export type DiffType = 'equal' | 'insert' | 'delete';
 export type DiffPart = { type: DiffType; value: string };
+export type AttributedDiffPart = DiffPart & { source?: ChangeSource };
 
 export const computeDiff = (text1: string, text2: string): DiffPart[] => {
   // Split into words but preserve whitespace/punctuation for reconstruction
@@ -47,4 +50,62 @@ export const computeDiff = (text1: string, text2: string): DiffPart[] => {
   }
   
   return diffs.reverse();
+};
+
+interface AttributedOptions {
+  llmSnapshot?: string | null;
+  forceSource?: ChangeSource;
+}
+
+/**
+ * Computes a diff and tags inserted/deleted parts with the source (LLM or USER).
+ * - If forceSource is provided, all inserts/deletes are tagged with that source.
+ * - If llmSnapshot is provided, we compare base->llmSnapshot (LLM edits) and
+ *   llmSnapshot->target (user edits) to attribute changes in the final diff.
+ */
+export const computeAttributedDiff = (
+  base: string,
+  target: string,
+  options: AttributedOptions = {}
+): AttributedDiffPart[] => {
+  const rawDiff = computeDiff(base || '', target || '');
+
+  if (options.forceSource) {
+    return rawDiff.map(part => part.type === 'equal' ? part : { ...part, source: options.forceSource });
+  }
+
+  const llmSnapshot = options.llmSnapshot ?? null;
+  const llmDiff = llmSnapshot ? computeDiff(base || '', llmSnapshot) : [];
+  const userBaseline = llmSnapshot ?? base;
+  const userDiff = computeDiff(userBaseline || '', target || '');
+
+  const llmInserted = new Set<string>();
+  const llmDeleted = new Set<string>();
+  llmDiff.forEach(part => {
+    if (part.type === 'insert') llmInserted.add(part.value);
+    if (part.type === 'delete') llmDeleted.add(part.value);
+  });
+
+  const userInserted = new Set<string>();
+  const userDeleted = new Set<string>();
+  userDiff.forEach(part => {
+    if (part.type === 'insert') userInserted.add(part.value);
+    if (part.type === 'delete') userDeleted.add(part.value);
+  });
+
+  return rawDiff.map(part => {
+    if (part.type === 'equal') return part;
+
+    if (part.type === 'insert') {
+      if (llmInserted.has(part.value)) return { ...part, source: 'LLM' };
+      if (userInserted.has(part.value)) return { ...part, source: 'USER' };
+    }
+
+    if (part.type === 'delete') {
+      if (llmDeleted.has(part.value)) return { ...part, source: 'LLM' };
+      if (userDeleted.has(part.value)) return { ...part, source: 'USER' };
+    }
+
+    return { ...part, source: 'USER' };
+  });
 };

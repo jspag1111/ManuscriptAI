@@ -13,12 +13,15 @@ export interface Reference {
   articleType?: string;
 }
 
+export type ChangeSource = 'LLM' | 'USER';
+
 export interface SectionVersion {
   id: string;
   timestamp: number;
   content: string;
   notes: string; // The prompts/notes used to generate this
   commitMessage?: string;
+  source?: ChangeSource;
 }
 
 export interface Section {
@@ -30,6 +33,10 @@ export interface Section {
   lastModified: number;
   useReferences?: boolean;
   includeInWordCount?: boolean;
+  currentVersionId?: string;
+  currentVersionBase?: string;
+  currentVersionStartedAt?: number;
+  lastLlmContent?: string | null;
 }
 
 export interface ProjectSettings {

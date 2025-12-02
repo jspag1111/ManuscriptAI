@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Section, SectionVersion } from '../types';
+import React, { useEffect, useState } from 'react';
+import { ChangeSource, Section, SectionVersion } from '../types';
 import { Button } from './Button';
-import { ArrowLeft, Clock, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { AttributedDiffViewer } from './AttributedDiffViewer';
 
 interface HistoryViewerProps {
   section: Section;
@@ -10,10 +11,31 @@ interface HistoryViewerProps {
 }
 
 export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore, onClose }) => {
-  const [selectedVersionId, setSelectedVersionId] = useState<string>(section.versions[0]?.id || '');
-  
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('');
+  const [showDiff, setShowDiff] = useState(false);
+
   const selectedVersion = section.versions.find(v => v.id === selectedVersionId);
-  const currentContent = section.content;
+  const selectedIndex = selectedVersion ? section.versions.findIndex(v => v.id === selectedVersionId) : -1;
+  const previousContent = selectedVersion
+    ? section.versions[selectedIndex + 1]?.content ?? section.currentVersionBase
+    : section.versions[0]?.content ?? section.currentVersionBase;
+  const displayContent = selectedVersion ? selectedVersion.content : section.content;
+  const currentSource: ChangeSource = section.lastLlmContent && section.lastLlmContent === section.content ? 'LLM' : 'USER';
+  const selectedSource: ChangeSource = selectedVersion ? (selectedVersion.source || 'USER') : currentSource;
+  const hasComparison = selectedVersion
+    ? !!section.versions[selectedIndex + 1] || !!section.currentVersionBase
+    : section.versions.length > 0 || !!section.currentVersionBase;
+  const hasChanges = hasComparison && previousContent !== undefined && previousContent !== null && previousContent !== displayContent;
+
+  useEffect(() => {
+    setShowDiff(false);
+  }, [selectedVersionId]);
+
+  const renderSourceBadge = (source: ChangeSource) => (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${source === 'LLM' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+      {source === 'LLM' ? 'LLM' : 'User'}
+    </span>
+  );
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -23,6 +45,10 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
             <ArrowLeft size={16} />
           </Button>
           <span className="font-semibold text-slate-700">Version History: {section.title}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span>Showing: {selectedVersion ? 'Saved version' : 'Current draft'}</span>
+          {renderSourceBadge(selectedSource)}
         </div>
       </div>
 
@@ -35,7 +61,10 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
                 onClick={() => setSelectedVersionId('')}
              >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-medium text-sm text-slate-800">Current Draft</span>
+                  <span className="font-medium text-sm text-slate-800 flex items-center gap-2">
+                    Current Draft
+                    {renderSourceBadge(currentSource)}
+                  </span>
                   <span className="text-xs text-slate-400">Now</span>
                 </div>
                 <p className="text-xs text-slate-500 truncate">Latest edits</p>
@@ -48,8 +77,9 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
                 onClick={() => setSelectedVersionId(v.id)}
               >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-medium text-sm text-slate-800">
+                  <span className="font-medium text-sm text-slate-800 flex items-center gap-2">
                     {new Date(v.timestamp).toLocaleDateString()}
+                    {renderSourceBadge(v.source || 'USER')}
                   </span>
                   <span className="text-xs text-slate-400">
                      {new Date(v.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -62,9 +92,43 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
         </div>
 
         {/* Content Preview */}
-        <div className="flex-1 flex flex-col bg-white">
-            <div className="flex-1 p-8 overflow-y-auto font-serif text-slate-800 leading-relaxed whitespace-pre-wrap">
-              {selectedVersionId && selectedVersion ? selectedVersion.content : currentContent}
+        <div className="flex-1 flex flex-col bg-white min-h-0">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+              <div className="text-sm text-slate-600">
+                {selectedVersion ? 'Compare to previous version' : 'Compare current draft to last saved version'}
+              </div>
+              <button
+                onClick={() => setShowDiff(!showDiff)}
+                disabled={!hasComparison}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                  showDiff ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                } ${!hasComparison ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                {showDiff ? <EyeOff size={14} /> : <Eye size={14} />}
+                {showDiff ? 'Hide Diff' : 'Show Diff'}
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0">
+              {showDiff && hasComparison ? (
+                <AttributedDiffViewer
+                  base={previousContent ?? ''}
+                  target={displayContent}
+                  llmSnapshot={!selectedVersion ? section.lastLlmContent ?? null : undefined}
+                  forceSource={selectedVersion ? selectedSource : undefined}
+                  title="Version Diff"
+                  subtitle={hasChanges ? 'Compared to prior version' : 'No changes since prior version'}
+                />
+              ) : (
+                <div className="flex-1 p-8 overflow-y-auto font-serif text-slate-800 leading-relaxed whitespace-pre-wrap">
+                  {displayContent}
+                  {!hasComparison && (
+                    <p className="text-sm text-slate-500 mt-4">
+                      No prior version available for comparison yet.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             
             {selectedVersionId && (

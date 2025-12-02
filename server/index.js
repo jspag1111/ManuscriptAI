@@ -72,6 +72,17 @@ const normalizeProject = (project = {}) => {
       ? project.sections.map((s) => ({
         ...s,
         useReferences: s.useReferences !== undefined ? s.useReferences : true,
+        includeInWordCount: s.includeInWordCount !== false,
+        currentVersionId: s.currentVersionId || s.id || ensureId(s),
+        currentVersionBase: s.currentVersionBase !== undefined ? s.currentVersionBase : (s.content || ''),
+        currentVersionStartedAt: s.currentVersionStartedAt || s.lastModified || fallbackTime,
+        lastLlmContent: s.lastLlmContent ?? null,
+        versions: Array.isArray(s.versions)
+          ? s.versions.map((v) => ({
+            ...v,
+            source: v?.source || 'USER',
+          }))
+          : [],
       }))
       : [],
     references: Array.isArray(project.references) ? project.references : [],

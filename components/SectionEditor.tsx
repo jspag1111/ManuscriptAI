@@ -7,8 +7,9 @@ import { getBibliographyOrder } from '../utils/citationUtils';
 import { calculateTextStats } from '../utils/textStats';
 import { Button } from './Button';
 import { DiffViewer } from './DiffViewer';
+import { AttributedDiffViewer } from './AttributedDiffViewer';
 import { RichEditor, RichEditorHandle } from './RichEditor';
-import { Wand2, Save, History, RefreshCw, PenTool, Quote, X, Search, Sparkles, FileText, ToggleLeft, ToggleRight, BookOpen } from 'lucide-react';
+import { Wand2, Save, History, Quote, X, Search, Sparkles, FileText, ToggleLeft, ToggleRight, BookOpen, Eye, EyeOff } from 'lucide-react';
 
 interface SectionEditorProps {
   section: Section;
@@ -46,6 +47,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   
   // Display toggle for citations
   const [showCitations, setShowCitations] = useState(false);
+  const [showWorkingDiff, setShowWorkingDiff] = useState(false);
   
   const editorRef = useRef<RichEditorHandle>(null);
 
@@ -53,6 +55,10 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   // Memoized to prevent RichEditor re-renders that lose selection
   const bibliographyOrder = useMemo(() => getBibliographyOrder(project.sections), [project.sections]);
   const contentStats = useMemo(() => calculateTextStats(content), [content]);
+  const workingBase = section.currentVersionBase !== undefined ? section.currentVersionBase : section.content;
+  const versionStartedAt = section.currentVersionStartedAt || section.lastModified;
+  const llmSnapshot = section.lastLlmContent ?? null;
+  const workingDiffSubtitle = versionStartedAt ? `Since ${new Date(versionStartedAt).toLocaleString()}` : undefined;
 
   // Sync internal state if section changes prop
   useEffect(() => {
@@ -66,12 +72,33 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     }
   }, [section.id, section.content, section.userNotes]); 
 
+  useEffect(() => {
+    if (section.currentVersionBase === undefined || !section.currentVersionId || !section.currentVersionStartedAt) {
+      onUpdateSection({
+        ...section,
+        currentVersionId: section.currentVersionId || generateId(),
+        currentVersionBase: section.currentVersionBase !== undefined ? section.currentVersionBase : section.content,
+        currentVersionStartedAt: section.currentVersionStartedAt || Date.now(),
+        lastLlmContent: section.lastLlmContent ?? null
+      });
+    }
+  }, [section, onUpdateSection]);
+
   // Reset review state when switching sections
   useEffect(() => {
     setIsReviewing(false);
     setPendingContent(null);
     setReviewSource(null);
+    setShowWorkingDiff(false);
   }, [section.id]);
+
+  useEffect(() => {
+    if (showWorkingDiff) {
+      setPopupPosition(null);
+      setShowRefineInput(false);
+      editorRef.current?.clearLock();
+    }
+  }, [showWorkingDiff]);
 
   // Auto-save effect 
   useEffect(() => {
@@ -85,15 +112,23 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   }, [content, notes, isReviewing]);
 
   const handleSave = () => {
+    const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
+    const ensureVersionId = section.currentVersionId || section.id || generateId();
+    const ensureStartedAt = section.currentVersionStartedAt || section.lastModified || Date.now();
     onUpdateSection({
       ...section,
       content,
       userNotes: notes,
-      lastModified: Date.now()
+      lastModified: Date.now(),
+      currentVersionBase: ensureVersionBase,
+      currentVersionId: ensureVersionId,
+      currentVersionStartedAt: ensureStartedAt,
+      lastLlmContent: section.lastLlmContent ?? null
     });
   };
 
   const handleDraft = async () => {
+    setShowWorkingDiff(false);
     setIsDrafting(true);
     handleSave();
     try {
@@ -118,7 +153,8 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
           timestamp: Date.now(),
           content: content,
           notes: notes,
-          commitMessage: `Auto-save before AI ${reviewSource}`
+          commitMessage: `Auto-save before AI ${reviewSource}`,
+          source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
         });
       }
 
@@ -129,7 +165,11 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         ...section,
         content: newContent,
         versions: newVersions,
-        lastModified: Date.now()
+        lastModified: Date.now(),
+        currentVersionBase: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
+        currentVersionId: section.currentVersionId || section.id || generateId(),
+        currentVersionStartedAt: section.currentVersionStartedAt || Date.now(),
+        lastLlmContent: newContent
       });
 
       setIsReviewing(false);
@@ -228,6 +268,38 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     }
   };
 
+  const handleStartNewVersion = () => {
+    const hasSnapshotContent = content.trim().length > 0 || notes.trim().length > 0;
+    const snapshotVersion = {
+      id: generateId(),
+      timestamp: Date.now(),
+      content,
+      notes,
+      commitMessage: 'Saved before starting new version',
+      source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
+    };
+
+    const updatedVersions = hasSnapshotContent ? [snapshotVersion, ...section.versions] : [...section.versions];
+
+    const nextSection: Section = {
+      ...section,
+      content,
+      userNotes: notes,
+      versions: updatedVersions,
+      currentVersionBase: content,
+      currentVersionStartedAt: Date.now(),
+      currentVersionId: generateId(),
+      lastLlmContent: null,
+      lastModified: Date.now()
+    };
+
+    setShowWorkingDiff(false);
+    setIsReviewing(false);
+    setPendingContent(null);
+    setReviewSource(null);
+    onUpdateSection(nextSection);
+  };
+
   const filteredReferences = project.references.filter(r => 
     r.title.toLowerCase().includes(citationSearch.toLowerCase()) || 
     r.authors.toLowerCase().includes(citationSearch.toLowerCase())
@@ -289,6 +361,10 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   <History size={16} className="mr-2" />
                   View Version History ({section.versions.length})
                </Button>
+               <Button variant="secondary" size="sm" onClick={handleStartNewVersion} disabled={isReviewing} className="w-full justify-start">
+                  <FileText size={16} className="mr-2" />
+                  Start New Version
+               </Button>
                <Button variant="secondary" size="sm" onClick={handleSave} disabled={isReviewing} className="w-full justify-start">
                   <Save size={16} className="mr-2" />
                   Force Save
@@ -307,6 +383,14 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 onAccept={handleAcceptChange}
                 onReject={handleRejectChange}
             />
+        ) : showWorkingDiff ? (
+            <AttributedDiffViewer 
+                base={workingBase} 
+                target={content} 
+                llmSnapshot={llmSnapshot}
+                title="Working Draft Diff"
+                subtitle={workingDiffSubtitle}
+            />
         ) : (
             <>
                 {/* Toolbar */}
@@ -323,6 +407,15 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                         >
                             {showCitations ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                             Format Citations
+                        </button>
+                        <button
+                            onClick={() => setShowWorkingDiff(!showWorkingDiff)}
+                            disabled={isReviewing}
+                            className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors ${showWorkingDiff ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                            title="Toggle working draft diff"
+                        >
+                            {showWorkingDiff ? <EyeOff size={18} /> : <Eye size={18} />}
+                            Working Diff
                         </button>
                     </div>
                     
