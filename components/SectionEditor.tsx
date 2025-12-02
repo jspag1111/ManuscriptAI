@@ -4,6 +4,7 @@ import { Section, Project } from '../types';
 import { generateSectionDraft, refineTextSelection } from '../services/geminiService';
 import { generateId } from '../services/storageService';
 import { getBibliographyOrder } from '../utils/citationUtils';
+import { calculateTextStats } from '../utils/textStats';
 import { Button } from './Button';
 import { DiffViewer } from './DiffViewer';
 import { RichEditor, RichEditorHandle } from './RichEditor';
@@ -51,6 +52,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   // Computed bibliography order for formatting citations [1-3]
   // Memoized to prevent RichEditor re-renders that lose selection
   const bibliographyOrder = useMemo(() => getBibliographyOrder(project.sections), [project.sections]);
+  const contentStats = useMemo(() => calculateTextStats(content), [content]);
 
   // Sync internal state if section changes prop
   useEffect(() => {
@@ -396,8 +398,12 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 )}
 
                 {/* Footer Stats */}
-                <div className="h-8 border-t border-slate-200 flex items-center px-4 text-xs text-slate-400 bg-slate-50 justify-between">
-                    <span>{content.split(/\s+/).filter(w => w.length > 0).length} words</span>
+                <div className="h-12 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 bg-slate-50 justify-between">
+                    <div className="flex items-center gap-4">
+                        <span><span className="font-semibold text-slate-700">{contentStats.words}</span> words</span>
+                        <span><span className="font-semibold text-slate-700">{contentStats.charsWithSpaces}</span> chars (with spaces)</span>
+                        <span><span className="font-semibold text-slate-700">{contentStats.charsWithoutSpaces}</span> chars (no spaces)</span>
+                    </div>
                     <span>Saved</span>
                 </div>
             </>

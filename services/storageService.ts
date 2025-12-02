@@ -1,6 +1,6 @@
 
 
-import { Project } from '../types';
+import { Project, GeneratedFigure, FigureType } from '../types';
 
 const API_BASE = '/api';
 
@@ -26,16 +26,42 @@ export const generateId = (): string => {
   });
 };
 
+const sanitizeFigureType = (value: string | undefined): FigureType => {
+  if (value === 'table' || value === 'supplemental') {
+    return value;
+  }
+  return 'figure';
+};
+
+const normalizeFigure = (figure: any, index: number): GeneratedFigure => {
+  const figureType = sanitizeFigureType(figure?.figureType);
+  const defaultLabelPrefix = figureType === 'table' ? 'Table' : 'Figure';
+
+  return {
+    id: figure?.id || generateId(),
+    prompt: figure?.prompt || '',
+    base64: figure?.base64,
+    createdAt: figure?.createdAt || Date.now(),
+    title: figure?.title || '',
+    label: figure?.label?.trim() || `${defaultLabelPrefix} ${index + 1}`,
+    description: figure?.description || '',
+    includeInWordCount: figure?.includeInWordCount === true,
+    figureType,
+    sourceType: figure?.sourceType === 'UPLOAD' ? 'UPLOAD' : 'AI',
+  };
+};
+
 const normalizeProject = (project: Project): Project => ({
   ...project,
   manuscriptMetadata: project.manuscriptMetadata || { authors: [], affiliations: [] },
   settings: project.settings || { ...DEFAULT_SETTINGS },
   sections: Array.isArray(project.sections) ? project.sections.map((s: any) => ({
     ...s,
-    useReferences: s.useReferences !== undefined ? s.useReferences : true
+    useReferences: s.useReferences !== undefined ? s.useReferences : true,
+    includeInWordCount: s.includeInWordCount !== false
   })) : [],
   references: Array.isArray(project.references) ? project.references : [],
-  figures: Array.isArray(project.figures) ? project.figures : [],
+  figures: Array.isArray(project.figures) ? project.figures.map((fig: any, index: number) => normalizeFigure(fig, index)) : [],
 });
 
 const handleResponse = async (response: Response) => {

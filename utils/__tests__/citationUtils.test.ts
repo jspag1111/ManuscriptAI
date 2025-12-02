@@ -11,6 +11,7 @@ describe('getBibliographyOrder', () => {
       versions: [],
       lastModified: Date.now(),
       useReferences: true,
+      includeInWordCount: true,
     },
     {
       id: 's2',
@@ -20,6 +21,7 @@ describe('getBibliographyOrder', () => {
       versions: [],
       lastModified: Date.now(),
       useReferences: true,
+      includeInWordCount: true,
     },
   ];
 

@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Project, AppView, SectionView, Section } from './types';
 import { getProjects, saveProject, createNewProject, deleteProject, generateId } from './services/storageService';
 import { exportProjectToWord } from './services/exportService';
@@ -12,6 +12,7 @@ import { FigureGenerator } from './components/FigureGenerator';
 import { HistoryViewer } from './components/HistoryViewer';
 import { MetadataEditor } from './components/MetadataEditor';
 import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
+import { calculateTextStats } from './utils/textStats';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,6 +34,76 @@ const App: React.FC = () => {
   const [newSectionName, setNewSectionName] = useState('');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const projectTotals = useMemo(() => {
+    const empty = {
+      words: 0,
+      charsWithSpaces: 0,
+      charsWithoutSpaces: 0,
+      totalSections: 0,
+      includedSections: 0,
+      figureWords: 0,
+      totalFigures: 0,
+      includedFigures: 0,
+    };
+    if (!currentProject) {
+      return empty;
+    }
+
+    const sectionTotals = currentProject.sections.reduce(
+      (acc, section) => {
+        const stats = calculateTextStats(section.content);
+        const include = section.includeInWordCount !== false;
+        acc.totalSections += 1;
+        if (include) {
+          acc.words += stats.words;
+          acc.charsWithSpaces += stats.charsWithSpaces;
+          acc.charsWithoutSpaces += stats.charsWithoutSpaces;
+          acc.includedSections += 1;
+        }
+        return acc;
+      },
+      {
+        words: 0,
+        charsWithSpaces: 0,
+        charsWithoutSpaces: 0,
+        totalSections: 0,
+        includedSections: 0,
+      }
+    );
+
+    const figureTotals = currentProject.figures.reduce(
+      (acc, fig) => {
+        acc.totalFigures += 1;
+        if (fig.includeInWordCount) {
+          const text = [fig.label, fig.title, fig.description].filter(Boolean).join(' ').trim();
+          const stats = calculateTextStats(text);
+          acc.words += stats.words;
+          acc.charsWithSpaces += stats.charsWithSpaces;
+          acc.charsWithoutSpaces += stats.charsWithoutSpaces;
+          acc.includedFigures += 1;
+        }
+        return acc;
+      },
+      {
+        words: 0,
+        charsWithSpaces: 0,
+        charsWithoutSpaces: 0,
+        totalFigures: 0,
+        includedFigures: 0,
+      }
+    );
+
+    return {
+      words: sectionTotals.words + figureTotals.words,
+      charsWithSpaces: sectionTotals.charsWithSpaces + figureTotals.charsWithSpaces,
+      charsWithoutSpaces: sectionTotals.charsWithoutSpaces + figureTotals.charsWithoutSpaces,
+      totalSections: sectionTotals.totalSections,
+      includedSections: sectionTotals.includedSections,
+      figureWords: figureTotals.words,
+      totalFigures: figureTotals.totalFigures,
+      includedFigures: figureTotals.includedFigures,
+    };
+  }, [currentProject]);
 
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
@@ -75,7 +146,8 @@ const App: React.FC = () => {
       userNotes: ds.defaultNotes,
       versions: [],
       lastModified: Date.now(),
-      useReferences: true
+      useReferences: true,
+      includeInWordCount: true
     }));
     
     try {
@@ -153,7 +225,8 @@ const App: React.FC = () => {
       userNotes: '',
       versions: [],
       lastModified: Date.now(),
-      useReferences: true
+      useReferences: true,
+      includeInWordCount: true
     };
     
     if (currentProject) {
@@ -204,6 +277,28 @@ const App: React.FC = () => {
                setActiveSectionId(updatedSections[0]?.id || null);
            }
       }
+  };
+
+  const handleToggleSectionInclusion = (id: string) => {
+      if (!currentProject) return;
+      const target = currentProject.sections.find(s => s.id === id);
+      if (!target) return;
+      const include = target.includeInWordCount !== false;
+      handleUpdateSection({
+          ...target,
+          includeInWordCount: !include
+      });
+  };
+
+  const handleToggleFigureInclusion = (id: string) => {
+      if (!currentProject) return;
+      const updatedFigures = currentProject.figures.map(fig =>
+        fig.id === id ? { ...fig, includeInWordCount: !fig.includeInWordCount } : fig
+      );
+      handleUpdateProject({
+        ...currentProject,
+        figures: updatedFigures
+      });
   };
 
 
@@ -451,6 +546,87 @@ const App: React.FC = () => {
                    <BookOpen size={16} className="mr-2" /> References
                  </button>
                </nav>
+             </div>
+
+             <div className="mt-6 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+               <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Project Totals</h3>
+                  <span className="text-[10px] text-slate-400">
+                    {projectTotals.includedSections}/{projectTotals.totalSections} sections
+                  </span>
+               </div>
+               <dl className="mt-3 space-y-1 text-xs">
+                 <div className="flex items-center justify-between">
+                   <dt className="text-slate-500">Words</dt>
+                   <dd className="font-semibold text-slate-800">{projectTotals.words.toLocaleString()}</dd>
+                 </div>
+                 {currentProject.figures.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-500">+ Figure/Table Text</dt>
+                    <dd className="font-semibold text-slate-700">{projectTotals.figureWords.toLocaleString()}</dd>
+                  </div>
+                 )}
+                 <div className="flex items-center justify-between">
+                   <dt className="text-slate-500">Chars (with spaces)</dt>
+                   <dd className="font-semibold text-slate-800">{projectTotals.charsWithSpaces.toLocaleString()}</dd>
+                 </div>
+                 <div className="flex items-center justify-between">
+                   <dt className="text-slate-500">Chars (no spaces)</dt>
+                   <dd className="font-semibold text-slate-800">{projectTotals.charsWithoutSpaces.toLocaleString()}</dd>
+                 </div>
+               </dl>
+               <div className="mt-3 pt-3 border-t border-slate-100">
+                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Included Sections</p>
+                 <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                   {currentProject.sections.map(section => {
+                      const include = section.includeInWordCount !== false;
+                      return (
+                        <label key={section.id} className="flex items-center gap-2 text-xs text-slate-600">
+                          <input 
+                            type="checkbox" 
+                            checked={include} 
+                            onChange={() => handleToggleSectionInclusion(section.id)} 
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="truncate">{section.title}</span>
+                        </label>
+                      );
+                   })}
+                   {currentProject.sections.length === 0 && (
+                      <p className="text-[11px] text-slate-400">No sections available.</p>
+                   )}
+                 </div>
+               </div>
+               {currentProject.figures.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Figure/Table Captions
+                    <span className="ml-1 font-normal text-slate-400">
+                      ({projectTotals.includedFigures}/{currentProject.figures.length} counted)
+                    </span>
+                  </p>
+                  <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                    {currentProject.figures.map((figure, index) => {
+                      const label = figure.label || (figure.figureType === 'table'
+                        ? `Table ${index + 1}`
+                        : figure.figureType === 'supplemental'
+                          ? `Supplemental ${index + 1}`
+                          : `Figure ${index + 1}`);
+                      return (
+                        <label key={figure.id} className="flex items-center gap-2 text-xs text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={figure.includeInWordCount}
+                            onChange={() => handleToggleFigureInclusion(figure.id)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="truncate">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+               )}
              </div>
           </div>
         </div>

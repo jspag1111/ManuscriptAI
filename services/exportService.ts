@@ -78,13 +78,21 @@ export const exportProjectToWord = (project: Project) => {
   const figuresHtml = figures.length > 0
     ? `
       <div class="section figures">
-        <h2>Figures</h2>
-        ${figures.map((fig, i) => `
-          <div class="figure-container">
-             <img src="${fig.base64}" alt="${fig.prompt}" width="500" />
-             <p class="figure-caption"><strong>Figure ${i+1}.</strong> ${fig.prompt}</p>
-          </div>
-        `).join('')}
+        <h2>Figures, Tables & Captions</h2>
+        ${figures.map((fig, i) => {
+          const prefix = fig.figureType === 'table' ? 'Table' : fig.figureType === 'supplemental' ? 'Supplemental' : 'Figure';
+          const label = (fig.label || '').trim() || `${prefix} ${i + 1}`;
+          const title = (fig.title || '').trim();
+          const caption = (fig.description || '').trim() || fig.prompt || '';
+          const heading = title ? `${label}: ${title}` : label;
+          const imageHtml = fig.base64 ? `<img src="${fig.base64}" alt="${heading}" width="500" />` : '';
+          return `
+            <div class="figure-container">
+              ${imageHtml}
+              <p class="figure-caption"><strong>${heading}</strong> ${caption}</p>
+            </div>
+          `;
+        }).join('')}
       </div>
     `
     : '';
