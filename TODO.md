@@ -1,4 +1,4 @@
-[ ] Create sql database and saving method
+[x] Create sql database and saving method
 
 [ ] Create ability for character count in addition to word count
 

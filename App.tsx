@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Project, AppView, SectionView, Section } from './types';
 import { getProjects, saveProject, createNewProject, deleteProject, generateId } from './services/storageService';
 import { exportProjectToWord } from './services/exportService';
@@ -12,6 +12,7 @@ import { FigureGenerator } from './components/FigureGenerator';
 import { HistoryViewer } from './components/HistoryViewer';
 import { MetadataEditor } from './components/MetadataEditor';
 import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
+import { calculateTextStats } from './utils/textStats';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,6 +34,38 @@ const App: React.FC = () => {
   const [newSectionName, setNewSectionName] = useState('');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const projectTotals = useMemo(() => {
+    if (!currentProject) {
+      return {
+        words: 0,
+        charsWithSpaces: 0,
+        charsWithoutSpaces: 0,
+        totalSections: 0,
+        includedSections: 0,
+      };
+    }
+    return currentProject.sections.reduce(
+      (acc, section) => {
+        const stats = calculateTextStats(section.content);
+        const include = section.includeInWordCount !== false;
+        acc.totalSections += 1;
+        if (include) {
+          acc.words += stats.words;
+          acc.charsWithSpaces += stats.charsWithSpaces;
+          acc.charsWithoutSpaces += stats.charsWithoutSpaces;
+          acc.includedSections += 1;
+        }
+        return acc;
+      },
+      {
+        words: 0,
+        charsWithSpaces: 0,
+        charsWithoutSpaces: 0,
+        totalSections: 0,
+        includedSections: 0,
+      }
+    );
+  }, [currentProject]);
 
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
@@ -75,7 +108,8 @@ const App: React.FC = () => {
       userNotes: ds.defaultNotes,
       versions: [],
       lastModified: Date.now(),
-      useReferences: true
+      useReferences: true,
+      includeInWordCount: true
     }));
     
     try {
@@ -153,7 +187,8 @@ const App: React.FC = () => {
       userNotes: '',
       versions: [],
       lastModified: Date.now(),
-      useReferences: true
+      useReferences: true,
+      includeInWordCount: true
     };
     
     if (currentProject) {
@@ -204,6 +239,17 @@ const App: React.FC = () => {
                setActiveSectionId(updatedSections[0]?.id || null);
            }
       }
+  };
+
+  const handleToggleSectionInclusion = (id: string) => {
+      if (!currentProject) return;
+      const target = currentProject.sections.find(s => s.id === id);
+      if (!target) return;
+      const include = target.includeInWordCount !== false;
+      handleUpdateSection({
+          ...target,
+          includeInWordCount: !include
+      });
   };
 
 
@@ -451,6 +497,51 @@ const App: React.FC = () => {
                    <BookOpen size={16} className="mr-2" /> References
                  </button>
                </nav>
+             </div>
+
+             <div className="mt-6 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+               <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Project Totals</h3>
+                  <span className="text-[10px] text-slate-400">
+                    {projectTotals.includedSections}/{projectTotals.totalSections} sections
+                  </span>
+               </div>
+               <dl className="mt-3 space-y-1 text-xs">
+                 <div className="flex items-center justify-between">
+                   <dt className="text-slate-500">Words</dt>
+                   <dd className="font-semibold text-slate-800">{projectTotals.words.toLocaleString()}</dd>
+                 </div>
+                 <div className="flex items-center justify-between">
+                   <dt className="text-slate-500">Chars (with spaces)</dt>
+                   <dd className="font-semibold text-slate-800">{projectTotals.charsWithSpaces.toLocaleString()}</dd>
+                 </div>
+                 <div className="flex items-center justify-between">
+                   <dt className="text-slate-500">Chars (no spaces)</dt>
+                   <dd className="font-semibold text-slate-800">{projectTotals.charsWithoutSpaces.toLocaleString()}</dd>
+                 </div>
+               </dl>
+               <div className="mt-3 pt-3 border-t border-slate-100">
+                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Included Sections</p>
+                 <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                   {currentProject.sections.map(section => {
+                      const include = section.includeInWordCount !== false;
+                      return (
+                        <label key={section.id} className="flex items-center gap-2 text-xs text-slate-600">
+                          <input 
+                            type="checkbox" 
+                            checked={include} 
+                            onChange={() => handleToggleSectionInclusion(section.id)} 
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="truncate">{section.title}</span>
+                        </label>
+                      );
+                   })}
+                   {currentProject.sections.length === 0 && (
+                      <p className="text-[11px] text-slate-400">No sections available.</p>
+                   )}
+                 </div>
+               </div>
              </div>
           </div>
         </div>

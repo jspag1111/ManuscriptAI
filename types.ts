@@ -29,6 +29,7 @@ export interface Section {
   versions: SectionVersion[];
   lastModified: number;
   useReferences?: boolean;
+  includeInWordCount?: boolean;
 }
 
 export interface ProjectSettings {

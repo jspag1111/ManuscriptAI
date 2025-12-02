@@ -32,7 +32,8 @@ const normalizeProject = (project: Project): Project => ({
   settings: project.settings || { ...DEFAULT_SETTINGS },
   sections: Array.isArray(project.sections) ? project.sections.map((s: any) => ({
     ...s,
-    useReferences: s.useReferences !== undefined ? s.useReferences : true
+    useReferences: s.useReferences !== undefined ? s.useReferences : true,
+    includeInWordCount: s.includeInWordCount !== false
   })) : [],
   references: Array.isArray(project.references) ? project.references : [],
   figures: Array.isArray(project.figures) ? project.figures : [],
