@@ -232,28 +232,28 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   );
 
   return (
-    <div className="h-full flex flex-row divide-x divide-slate-200 relative">
+    <div className="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-200 relative">
       {/* Left Pane: Controls & Notes */}
-      <div className="w-1/3 min-w-[300px] flex flex-col bg-slate-50">
+      <div className="w-full lg:w-1/3 lg:min-w-[320px] min-w-0 flex flex-col bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-200">
         <div className="p-4 border-b border-slate-200 bg-white">
           <h2 className="text-xl font-bold text-slate-800">{section.title}</h2>
           <p className="text-xs text-slate-500 mt-1">Last saved: {new Date(section.lastModified).toLocaleTimeString()}</p>
         </div>
-        
-        <div className="p-4 flex-1 overflow-y-auto">
+
+        <div className="p-4 flex-1 overflow-y-auto space-y-4">
           <label className="block text-sm font-medium text-slate-700 mb-2">
             Section Goals & Notes
           </label>
-          <textarea 
-            className="w-full h-48 p-3 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 mb-4 bg-white"
+          <textarea
+            className="w-full h-36 sm:h-48 p-3 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 bg-white"
             placeholder="What should this section cover? List your methods, key points, or arguments here..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             disabled={isReviewing}
           />
-          
+
           <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                  <h4 className="text-sm font-semibold text-blue-800 flex items-center">
                     <Wand2 size={16} className="mr-2" />
                     Gemini Drafter
@@ -280,7 +280,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
             </Button>
           </div>
           
-          <div className="mt-6">
+          <div className="pt-2">
             <h4 className="text-sm font-medium text-slate-700 mb-2">Actions</h4>
             <div className="space-y-2">
                <Button variant="secondary" size="sm" onClick={onViewHistory} disabled={isReviewing} className="w-full justify-start">
@@ -297,19 +297,19 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       </div>
 
       {/* Right Pane: Editor or Diff Viewer */}
-      <div className="flex-1 flex flex-col relative bg-white">
+      <div className="flex-1 flex flex-col relative bg-white min-h-0">
         {isReviewing && pendingContent !== null ? (
-            <DiffViewer 
-                original={content} 
-                modified={pendingContent} 
+            <DiffViewer
+                original={content}
+                modified={pendingContent}
                 onAccept={handleAcceptChange}
                 onReject={handleRejectChange}
             />
         ) : (
             <>
                 {/* Toolbar */}
-                <div className="h-12 border-b border-slate-200 flex items-center px-4 justify-between bg-slate-50">
-                    <div className="flex items-center gap-3">
+                <div className="min-h-[3rem] border-b border-slate-200 flex items-center px-4 justify-between bg-slate-50 flex-wrap gap-2">
+                    <div className="flex items-center gap-3 flex-wrap text-left">
                         <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                             Manuscript Editor
                         </span>
@@ -340,7 +340,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 </div>
 
                 {/* Rich Editor Component */}
-                <div className="flex-1 overflow-hidden relative">
+                <div className="flex-1 overflow-hidden relative min-h-0">
                     <RichEditor
                         ref={editorRef}
                         className="h-full overflow-y-auto"

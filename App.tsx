@@ -11,7 +11,7 @@ import { ReferenceManager } from './components/ReferenceManager';
 import { FigureGenerator } from './components/FigureGenerator';
 import { HistoryViewer } from './components/HistoryViewer';
 import { MetadataEditor } from './components/MetadataEditor';
-import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
+import { Plus, Layout, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info, Menu } from 'lucide-react';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,6 +33,7 @@ const App: React.FC = () => {
   const [newSectionName, setNewSectionName] = useState('');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
@@ -55,6 +56,14 @@ const App: React.FC = () => {
     };
     load();
     return () => { isMounted = false; };
+  }, []);
+
+  // Keep sidebar open on larger viewports and collapsed on mobile
+  useEffect(() => {
+    const syncSidebar = () => setIsSidebarOpen(window.innerWidth >= 1024);
+    syncSidebar();
+    window.addEventListener('resize', syncSidebar);
+    return () => window.removeEventListener('resize', syncSidebar);
   }, []);
 
   const handleCreateProjectClick = () => {
@@ -313,15 +322,25 @@ const App: React.FC = () => {
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Top Header */}
       <header className="h-14 border-b border-slate-200 flex items-center justify-between px-4 bg-white z-10 shrink-0">
-        <div className="flex items-center">
-          <button onClick={() => setView(AppView.DASHBOARD)} className="p-2 hover:bg-slate-100 rounded-full mr-2">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setView(AppView.DASHBOARD)} className="p-2 hover:bg-slate-100 rounded-full mr-1">
             <ArrowLeft size={20} className="text-slate-600" />
           </button>
-          <h1 className="font-semibold text-slate-800 truncate max-w-md" title={currentProject.title}>
-            {currentProject.title}
-          </h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <Layout size={18} className="text-blue-500" />
+            <h1 className="font-semibold text-slate-800 truncate max-w-md" title={currentProject.title}>
+              {currentProject.title}
+            </h1>
+          </div>
+          <button
+            className="p-2 hover:bg-slate-100 rounded-full lg:hidden"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            aria-label="Toggle navigation"
+          >
+            <Menu size={18} />
+          </button>
         </div>
-        
+
         <div className="flex items-center space-x-2">
            <Button variant="secondary" size="sm" onClick={handleExport} className="hidden sm:flex items-center gap-2">
               <Download size={16} /> Export DOCX
@@ -333,9 +352,11 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
+        <div
+          className={`${isSidebarOpen ? 'flex' : 'hidden'} lg:flex w-full lg:w-64 bg-slate-50 border-slate-200 flex-col shrink-0 border-b lg:border-b-0 lg:border-r relative z-30 lg:z-auto`}
+        >
           <div className="p-4 flex-1 overflow-y-auto">
              <div className="mb-6">
                  <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Manuscript Info</h2>
@@ -455,8 +476,17 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        {/* Mobile overlay to close sidebar */}
+        {isSidebarOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-black/10 z-20"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden
+          />
+        )}
+
         {/* Main Content Area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden min-h-0 relative z-10">
           {activeTab === SectionView.EDITOR && activeSection && (
             <SectionEditor 
               section={activeSection} 

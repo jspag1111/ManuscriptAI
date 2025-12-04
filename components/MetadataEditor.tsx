@@ -100,14 +100,14 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ project, onUpdat
             <FileText size={20} className="mr-2" />
             Manuscript Configuration
          </h3>
-         <div className="flex space-x-1 bg-white p-1 rounded-lg border border-slate-200 mb-6 max-w-md">
-             <button 
+         <div className="flex flex-col sm:flex-row sm:space-x-1 space-y-2 sm:space-y-0 bg-white p-1 rounded-lg border border-slate-200 mb-6 max-w-xl">
+             <button
                 onClick={() => setActiveTab('info')}
                 className={`flex-1 flex items-center justify-center py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'info' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
              >
                 <Users size={16} className="mr-2" /> Authors & Affiliations
              </button>
-             <button 
+             <button
                 onClick={() => setActiveTab('journal')}
                 className={`flex-1 flex items-center justify-center py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'journal' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
              >
@@ -158,9 +158,9 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ project, onUpdat
                     {project.manuscriptMetadata.affiliations.map((aff, index) => (
                         <div key={aff.id} className="flex gap-2 items-start bg-slate-50 p-3 rounded border border-slate-100">
                              <span className="text-slate-400 font-mono text-xs pt-2.5 w-6 text-center">{index + 1}</span>
-                             <div className="flex-1 grid grid-cols-2 gap-2">
-                                <input 
-                                    placeholder="Institution / University" 
+                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <input
+                                    placeholder="Institution / University"
                                     className="col-span-2 p-2 border rounded text-sm"
                                     value={aff.institution}
                                     onChange={(e) => updateAffiliation(aff.id, 'institution', e.target.value)}
@@ -201,10 +201,10 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ project, onUpdat
                 <div className="space-y-4">
                     {project.manuscriptMetadata.authors.map((author, index) => (
                         <div key={author.id} className="bg-slate-50 p-4 rounded border border-slate-100">
-                             <div className="flex gap-3 mb-3">
-                                <div className="flex-1 grid grid-cols-2 gap-3">
-                                    <input 
-                                        placeholder="First Name" 
+                                <div className="flex gap-3 mb-3 flex-col sm:flex-row">
+                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <input
+                                        placeholder="First Name"
                                         className="p-2 border rounded text-sm"
                                         value={author.firstName}
                                         onChange={(e) => updateAuthor(author.id, { firstName: e.target.value })}
