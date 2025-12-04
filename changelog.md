@@ -1,3 +1,7 @@
+## 2025-12-05 17:40 EST — fix: supabase invite typing
+- Added explicit Supabase schema scaffolding (views/functions/enums/composite types) so typed clients resolve table metadata during builds.
+- Tightened invite token insertion typing with schema-aware payload construction to satisfy Supabase type checks in the API route.
+
 ## 2025-12-04 17:10 EST — fix: supabase build compatibility
 - Swapped the Supabase server helpers to `@supabase/ssr` and centralized cookie-aware client creation to restore compatibility with Next.js builds.
 - Fixed the Auth UI import by sourcing `ThemeSupa` from `@supabase/auth-ui-shared` and added the new dependency alongside refreshed lockfile state.

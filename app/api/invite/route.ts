@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServiceRoleSupabase, getServerSupabase } from '../../../lib/supabaseServer';
 import crypto from 'crypto';
+import type { Database } from '../../../types/supabase';
 
 const ADMIN_EMAILS = (process.env.ADMIN_ALLOWED_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean);
 
@@ -33,12 +34,15 @@ export async function POST(request: Request) {
   const { allowed_email, expires_at, notes } = await request.json();
   const token = crypto.randomBytes(12).toString('hex');
   const supabase = getServiceRoleSupabase();
-  const { error } = await supabase.from('invite_tokens').insert({
+  const payload: Database['public']['Tables']['invite_tokens']['Insert'] = {
     token,
-    allowed_email: allowed_email || null,
-    expires_at: expires_at || null,
-    notes: notes || null,
-  });
+    allowed_email: allowed_email ?? null,
+    expires_at: expires_at ?? null,
+    notes: notes ?? null,
+  };
+  const { error } = await supabase
+    .from<'invite_tokens'>('invite_tokens')
+    .insert(payload);
 
   if (error) {
     return new NextResponse('Failed to create invite token', { status: 500 });
