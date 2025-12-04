@@ -1,75 +1,18 @@
 import express from 'express';
-import Database from 'better-sqlite3';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { dbClient, normalizeProject, DATA_DIR, DB_PATH } from './dbClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.resolve(__dirname, '../data');
-const DB_PATH = path.join(DATA_DIR, 'projects.sqlite');
 const PORT = process.env.PORT || 4000;
 
-const DEFAULT_SETTINGS = {
-  targetJournal: '',
-  wordCountTarget: 3000,
-  formattingRequirements: '',
-  tone: 'Academic and formal',
-};
-
-const ensureId = (project) => {
-  if (project.id) return project.id;
-  if (typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
-
-const normalizeProject = (project = {}) => {
-  const fallbackTime = Date.now();
-  return {
-    ...project,
-    id: ensureId(project),
-    created: project.created || fallbackTime,
-    lastModified: project.lastModified || project.last_modified || fallbackTime,
-    settings: project.settings || { ...DEFAULT_SETTINGS },
-    manuscriptMetadata: project.manuscriptMetadata || { authors: [], affiliations: [] },
-    sections: Array.isArray(project.sections)
-      ? project.sections.map((s) => ({
-        ...s,
-        useReferences: s.useReferences !== undefined ? s.useReferences : true,
-      }))
-      : [],
-    references: Array.isArray(project.references) ? project.references : [],
-    figures: Array.isArray(project.figures) ? project.figures : [],
-  };
-};
-
-fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.exec(`
-  CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    created INTEGER NOT NULL,
-    last_modified INTEGER NOT NULL,
-    data TEXT NOT NULL
-  );
-`);
-
-const seedFromExampleData = () => {
-  const row = db.prepare('SELECT COUNT(*) as count FROM projects').get();
-  if (row?.count > 0) {
+const seedFromExampleData = async () => {
+  const rowCount = await dbClient.countProjects();
+  if (rowCount > 0) {
     return;
   }
 
@@ -82,101 +25,69 @@ const seedFromExampleData = () => {
   try {
     const raw = fs.readFileSync(examplePath, 'utf-8');
     const projects = JSON.parse(raw);
-    const insert = db.prepare(`
-      INSERT OR REPLACE INTO projects (id, title, description, created, last_modified, data)
-      VALUES (@id, @title, @description, @created, @last_modified, @data)
-    `);
-
-    const insertMany = db.transaction((items) => {
-      for (const project of items) {
-        const normalized = normalizeProject(project);
-        insert.run({
-          id: normalized.id,
-          title: normalized.title || 'Untitled Project',
-          description: normalized.description || '',
-          created: normalized.created,
-          last_modified: normalized.lastModified,
-          data: JSON.stringify(normalized),
-        });
-      }
-    });
-
-    insertMany(projects);
+    await dbClient.insertMany(projects.map((project) => normalizeProject(project)));
     console.log(`Seeded ${projects.length} project(s) from example_data.json`);
   } catch (error) {
     console.error('Failed to seed database from example_data.json', error);
   }
 };
 
-seedFromExampleData();
+const startServer = async () => {
+  await dbClient.ensureSchema();
+  await seedFromExampleData();
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+  const app = express();
+  app.use(cors());
+  app.use(express.json({ limit: '10mb' }));
 
-app.get('/api/projects', (_req, res) => {
-  try {
-    const rows = db.prepare('SELECT data FROM projects ORDER BY last_modified DESC').all();
-    const projects = rows.map((row) => normalizeProject(JSON.parse(row.data)));
-    res.json(projects);
-  } catch (error) {
-    console.error('Failed to fetch projects', error);
-    res.status(500).json({ error: 'Failed to fetch projects' });
+  app.get('/api/projects', async (_req, res) => {
+    try {
+      const projects = await dbClient.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error('Failed to fetch projects', error);
+      res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
+  app.post('/api/projects', async (req, res) => {
+    try {
+      const toPersist = await dbClient.upsertProject(req.body);
+      res.json(toPersist);
+    } catch (error) {
+      console.error('Failed to save project', error);
+      res.status(500).json({ error: 'Failed to save project' });
+    }
+  });
+
+  app.delete('/api/projects/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      await dbClient.deleteProject(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete project', error);
+      res.status(500).json({ error: 'Failed to delete project' });
+    }
+  });
+
+  if (process.argv.includes('--seed-only')) {
+    console.log('Database seed complete. Exiting without starting server.');
+    process.exit(0);
   }
-});
 
-app.post('/api/projects', (req, res) => {
-  try {
-    const incoming = normalizeProject(req.body);
-    const now = Date.now();
-    const toPersist = {
-      ...incoming,
-      created: incoming.created || now,
-      lastModified: now,
-    };
+  app.listen(PORT, () => {
+    console.log(`API listening on http://localhost:${PORT}`);
+    if (dbClient.type === 'sqlite') {
+      console.log(`Local database file: ${DB_PATH}`);
+      console.log(`Data directory: ${DATA_DIR}`);
+    } else {
+      console.log(`Turso database: ${process.env.TURSO_DATABASE_URL}`);
+    }
+  });
+};
 
-    db.prepare(`
-      INSERT INTO projects (id, title, description, created, last_modified, data)
-      VALUES (@id, @title, @description, @created, @last_modified, @data)
-      ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title,
-        description=excluded.description,
-        created=excluded.created,
-        last_modified=excluded.last_modified,
-        data=excluded.data
-    `).run({
-      id: toPersist.id,
-      title: toPersist.title || 'Untitled Project',
-      description: toPersist.description || '',
-      created: toPersist.created,
-      last_modified: toPersist.lastModified,
-      data: JSON.stringify(toPersist),
-    });
-
-    res.json(toPersist);
-  } catch (error) {
-    console.error('Failed to save project', error);
-    res.status(500).json({ error: 'Failed to save project' });
-  }
-});
-
-app.delete('/api/projects/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Failed to delete project', error);
-    res.status(500).json({ error: 'Failed to delete project' });
-  }
-});
-
-if (process.argv.includes('--seed-only')) {
-  console.log('Database seed complete. Exiting without starting server.');
-  process.exit(0);
-}
-
-app.listen(PORT, () => {
-  console.log(`SQLite API listening on http://localhost:${PORT}`);
-  console.log(`Database file: ${DB_PATH}`);
+startServer().catch((error) => {
+  console.error('Failed to start server', error);
+  process.exit(1);
 });
