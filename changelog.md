@@ -1,3 +1,7 @@
+## 2025-12-05 23:55 EST — fix: vercel manifest and npm warnings
+- Updated `vercel.json` to rely on the default Next.js output so Vercel no longer looks for a missing `.vercel/output/routes-manifest.json`.
+- Pinned the Node engine to `20.x` and added overrides for `node-domexception` and `jws` to silence install-time deprecations and resolve the audit warning.
+
 ## 2025-12-05 23:40 EST — chore: vercel config and lint upgrade
 - Added a `vercel.json` that declares the Next.js framework, build command, and `.vercel/output` directory so Vercel stops looking for a `dist` folder after builds.
 - Updated tooling to ESLint 9 with a flat-config bridge and Node 20 engine requirement while removing deprecated Supabase auth helper dependencies.
