@@ -1,3 +1,7 @@
+## 2025-12-05 23:40 EST — chore: vercel config and lint upgrade
+- Added a `vercel.json` that declares the Next.js framework, build command, and `.vercel/output` directory so Vercel stops looking for a `dist` folder after builds.
+- Updated tooling to ESLint 9 with a flat-config bridge and Node 20 engine requirement while removing deprecated Supabase auth helper dependencies.
+
 ## 2025-12-05 23:15 EST — fix: supabase build configuration
 - Loosened Supabase client creation to use typed schema relationships and safe JSON casting so API routes compile cleanly.
 - Added fallback Supabase credentials for build-time rendering and simplified the client provider to use a browser Supabase client without deprecated helpers.
