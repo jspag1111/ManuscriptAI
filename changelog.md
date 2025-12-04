@@ -1,3 +1,6 @@
+## 2025-12-05 18:10 EST — fix: supabase invite insert typing
+- Removed the erroneous generic parameter on the invite token insert call so Supabase type inference works during Next.js build lint/type checks.
+
 ## 2025-12-05 17:40 EST — fix: supabase invite typing
 - Added explicit Supabase schema scaffolding (views/functions/enums/composite types) so typed clients resolve table metadata during builds.
 - Tightened invite token insertion typing with schema-aware payload construction to satisfy Supabase type checks in the API route.

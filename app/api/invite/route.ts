@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     notes: notes ?? null,
   };
   const { error } = await supabase
-    .from<'invite_tokens'>('invite_tokens')
+    .from('invite_tokens')
     .insert(payload);
 
   if (error) {
