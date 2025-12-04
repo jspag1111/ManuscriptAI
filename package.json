@@ -1,34 +1,35 @@
 {
   "name": "manuscriptai",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "server": "node server/index.js",
-    "seed": "node server/index.js --seed-only",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest run"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "next lint"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
-    "better-sqlite3": "^12.5.0",
-    "cors": "^2.8.5",
-    "express": "^5.2.1",
+    "@supabase/auth-helpers-nextjs": "^0.15.0",
+    "@supabase/auth-helpers-react": "^0.15.0",
+    "@supabase/auth-ui-react": "^0.4.7",
+    "@supabase/supabase-js": "^2.47.10",
     "lucide-react": "^0.554.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "next": "^14.2.16",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@types/react": "19.2.7",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.16",
     "jsdom": "^26.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "vitest": "^2.1.8"
+    "typescript": "~5.8.2"
   }
 }

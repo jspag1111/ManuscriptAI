@@ -1,3 +1,9 @@
+## 2025-12-04 21:50 EST — feat: migrate to next supabase platform
+- Migrated the app shell to Next.js App Router with Supabase-powered authentication and storage APIs for projects and invite tokens.
+- Added Supabase client/server providers, service-role API routes for projects and invite token management, plus an admin dashboard at `/admin` guarded by `ADMIN_ALLOWED_EMAILS`.
+- Rewired the client manuscript experience into a Next.js client component while preserving existing editors, figure tools, and export flows.
+- Documented Supabase schema, environment variables, and invite-token workflow in an updated README for production deployment.
+
 ## 2025-12-02 01:19 EST
 - Simplified diff views to a single unified style without LLM vs user attribution or legends, keeping standard additions/removals highlighting only.
 - Swapped the toolbar placement so “Insert Citation” sits with formatting controls and “Show/Hide Diff” lives on the right side of the editor header.

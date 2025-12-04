@@ -1,18 +1,18 @@
-
+'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Project, AppView, SectionView, Section } from './types';
-import { getProjects, saveProject, createNewProject, deleteProject, generateId } from './services/storageService';
-import { exportProjectToWord } from './services/exportService';
-import { DEFAULT_SECTIONS } from './constants';
-import { Button } from './components/Button';
-import { SectionEditor } from './components/SectionEditor';
-import { ReferenceManager } from './components/ReferenceManager';
-import { FigureGenerator } from './components/FigureGenerator';
-import { HistoryViewer } from './components/HistoryViewer';
-import { MetadataEditor } from './components/MetadataEditor';
-import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
-import { calculateTextStats } from './utils/textStats';
+import { Project, AppView, SectionView, Section } from '../types';
+import { getProjects, saveProject, createNewProject, deleteProject, generateId } from '../services/storageService';
+import { exportProjectToWord } from '../services/exportService';
+import { DEFAULT_SECTIONS } from '../constants';
+import { Button } from './Button';
+import { SectionEditor } from './SectionEditor';
+import { ReferenceManager } from './ReferenceManager';
+import { FigureGenerator } from './FigureGenerator';
+import { HistoryViewer } from './HistoryViewer';
+import { MetadataEditor } from './MetadataEditor';
+import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image as ImageIcon, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
+import { calculateTextStats } from '../utils/textStats';
 
 const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -541,7 +541,7 @@ const App: React.FC = () => {
                       : 'text-slate-600 hover:bg-slate-100'
                     }`}
                  >
-                   <Image size={16} className="mr-2" /> Figures
+                   <ImageIcon size={16} className="mr-2" /> Figures
                  </button>
                  <button
                     onClick={() => setActiveTab('REFERENCES' as any)}

@@ -81,7 +81,7 @@ const handleResponse = async (response: Response) => {
 };
 
 export const getProjects = async (): Promise<Project[]> => {
-  const response = await fetch(`${API_BASE}/projects`);
+  const response = await fetch(`${API_BASE}/projects`, { credentials: 'include' });
   const data = await handleResponse(response);
   return data.map((p: Project) => normalizeProject(p));
 };
@@ -92,6 +92,7 @@ export const saveProject = async (project: Project): Promise<Project> => {
     headers: {
       'Content-Type': 'application/json'
     },
+    credentials: 'include',
     body: JSON.stringify(project)
   });
 
@@ -101,7 +102,8 @@ export const saveProject = async (project: Project): Promise<Project> => {
 
 export const deleteProject = async (id: string): Promise<void> => {
   const response = await fetch(`${API_BASE}/projects/${id}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    credentials: 'include'
   });
   if (!response.ok) {
     throw new Error('Failed to delete project');

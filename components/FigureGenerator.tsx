@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import NextImage from 'next/image';
 import { generateId } from '../services/storageService';
 import { FigureType, GeneratedFigure, Project } from '../types';
 import { Button } from './Button';
@@ -268,14 +269,17 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
                   <span className="uppercase tracking-wide">{figureTypeLabel(fig.figureType)}</span>
                 </div>
 
-                {fig.base64 ? (
-                  <div className="bg-slate-50 flex flex-col items-center justify-center p-4 gap-2">
-                    <img
-                      src={fig.base64}
-                      alt={fig.title || fig.prompt || fig.label || 'Figure preview'}
-                      className="max-h-48 object-contain cursor-zoom-in"
-                      onClick={() => setPreviewFigure(fig)}
-                    />
+                  {fig.base64 ? (
+                    <div className="bg-slate-50 flex flex-col items-center justify-center p-4 gap-2">
+                      <NextImage
+                        src={fig.base64}
+                        alt={fig.title || fig.prompt || fig.label || 'Figure preview'}
+                        className="max-h-48 object-contain cursor-zoom-in"
+                        onClick={() => setPreviewFigure(fig)}
+                        width={800}
+                        height={600}
+                        unoptimized
+                      />
                     <div className="flex flex-wrap gap-2 text-xs">
                       <button
                         type="button"
@@ -405,7 +409,14 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
                 <span className="text-xs uppercase tracking-wide text-slate-400">{figureTypeLabel(previewFigure.figureType)}</span>
               </div>
               <div className="bg-slate-50 rounded-md p-4 flex justify-center">
-                <img src={previewFigure.base64} alt={previewFigure.label} className="max-h-[70vh] object-contain" />
+              <NextImage
+                src={previewFigure.base64}
+                alt={previewFigure.label}
+                className="max-h-[70vh] object-contain"
+                width={1200}
+                height={900}
+                unoptimized
+              />
               </div>
               {previewFigure.description && (
                 <p className="text-xs text-slate-500">

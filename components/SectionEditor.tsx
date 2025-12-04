@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Section, Project } from '../types';
 import { generateSectionDraft, refineTextSelection } from '../services/geminiService';
 import { generateId } from '../services/storageService';
@@ -69,7 +69,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         setShowRefineInput(false);
         editorRef.current?.clearLock();
     }
-  }, [section.id, section.content, section.userNotes]); 
+    }, [section.id, section.content, section.userNotes, isReviewing]);
 
   useEffect(() => {
     if (section.currentVersionBase === undefined || !section.currentVersionId || !section.currentVersionStartedAt) {
@@ -99,32 +99,32 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     }
   }, [showWorkingDiff]);
 
-  // Auto-save effect 
-  useEffect(() => {
-    if (isReviewing) return;
-    const timer = setTimeout(() => {
-      if (content !== section.content || notes !== section.userNotes) {
-        handleSave();
-      }
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [content, notes, isReviewing]);
-
-  const handleSave = () => {
-    const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
-    const ensureVersionId = section.currentVersionId || section.id || generateId();
-    const ensureStartedAt = section.currentVersionStartedAt || section.lastModified || Date.now();
-    onUpdateSection({
-      ...section,
+    const handleSave = useCallback(() => {
+      const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
+      const ensureVersionId = section.currentVersionId || section.id || generateId();
+      const ensureStartedAt = section.currentVersionStartedAt || section.lastModified || Date.now();
+      onUpdateSection({
+        ...section,
       content,
       userNotes: notes,
       lastModified: Date.now(),
-      currentVersionBase: ensureVersionBase,
-      currentVersionId: ensureVersionId,
-      currentVersionStartedAt: ensureStartedAt,
-      lastLlmContent: section.lastLlmContent ?? null
-    });
-  };
+        currentVersionBase: ensureVersionBase,
+        currentVersionId: ensureVersionId,
+        currentVersionStartedAt: ensureStartedAt,
+        lastLlmContent: section.lastLlmContent ?? null
+      });
+    }, [content, notes, onUpdateSection, section]);
+
+    // Auto-save effect
+    useEffect(() => {
+      if (isReviewing) return;
+      const timer = setTimeout(() => {
+        if (content !== section.content || notes !== section.userNotes) {
+          handleSave();
+        }
+      }, 5000);
+      return () => clearTimeout(timer);
+    }, [content, notes, isReviewing, section.content, section.userNotes, handleSave]);
 
   const handleDraft = async () => {
     setShowWorkingDiff(false);
