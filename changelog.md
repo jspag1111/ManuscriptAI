@@ -1,3 +1,7 @@
+## 2025-12-04 17:10 EST — fix: supabase build compatibility
+- Swapped the Supabase server helpers to `@supabase/ssr` and centralized cookie-aware client creation to restore compatibility with Next.js builds.
+- Fixed the Auth UI import by sourcing `ThemeSupa` from `@supabase/auth-ui-shared` and added the new dependency alongside refreshed lockfile state.
+
 ## 2025-12-04 21:50 EST — feat: migrate to next supabase platform
 - Migrated the app shell to Next.js App Router with Supabase-powered authentication and storage APIs for projects and invite tokens.
 - Added Supabase client/server providers, service-role API routes for projects and invite token management, plus an admin dashboard at `/admin` guarded by `ADMIN_ALLOWED_EMAILS`.

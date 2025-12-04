@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Auth, ThemeSupa } from '@supabase/auth-ui-react';
+import { Auth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { useSupabase } from '../providers/SupabaseProvider';
 import { useInvite } from '../providers/InviteProvider';
 import { AlertCircle, ShieldCheck } from 'lucide-react';

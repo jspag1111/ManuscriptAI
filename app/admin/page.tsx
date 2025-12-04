@@ -1,10 +1,8 @@
-import { cookies, headers } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { InviteDashboard } from '../../components/admin/InviteDashboard';
-import { Database } from '../../types/supabase';
+import { getServerSupabase } from '../../lib/supabaseServer';
 
 export default async function AdminPage() {
-  const supabase = createServerComponentClient<Database>({ cookies, headers });
+  const supabase = getServerSupabase();
   const {
     data: { session },
   } = await supabase.auth.getSession();

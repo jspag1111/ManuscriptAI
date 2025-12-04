@@ -1,11 +1,9 @@
-import { cookies, headers } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import ManuscriptApp from '../components/ManuscriptApp';
 import { AuthLanding } from '../components/auth/AuthLanding';
-import { Database } from '../types/supabase';
+import { getServerSupabase } from '../lib/supabaseServer';
 
 export default async function Home() {
-  const supabase = createServerComponentClient<Database>({ cookies, headers });
+  const supabase = getServerSupabase();
   const {
     data: { session },
   } = await supabase.auth.getSession();
