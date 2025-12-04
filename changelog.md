@@ -1,3 +1,8 @@
+## 2025-12-05 23:15 EST — fix: supabase build configuration
+- Loosened Supabase client creation to use typed schema relationships and safe JSON casting so API routes compile cleanly.
+- Added fallback Supabase credentials for build-time rendering and simplified the client provider to use a browser Supabase client without deprecated helpers.
+- Fixed React ref typing in the figure uploader and hardened section version typing to satisfy strict checks.
+
 ## 2025-12-05 18:10 EST — fix: supabase invite insert typing
 - Removed the erroneous generic parameter on the invite token insert call so Supabase type inference works during Next.js build lint/type checks.
 
