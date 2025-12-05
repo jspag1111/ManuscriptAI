@@ -1,3 +1,9 @@
+## 2025-12-05 11:30 EST
+- Documented the Vercel build output for the Next.js app so deployments look for the correct directory (**commit:** "Add Vercel configuration for Next.js deployment").
+
+## 2025-12-05 09:39 EST
+- Migrate the UI from Vite to the Next.js App Router with Tailwind CSS, shared SQLite API routes, and Supabase client scaffolding (**commit:** "Migrate UI from Vite to Next.js with shared API").
+
 ## 2025-12-02 01:19 EST
 - Simplified diff views to a single unified style without LLM vs user attribution or legends, keeping standard additions/removals highlighting only.
 - Swapped the toolbar placement so “Insert Citation” sits with formatting controls and “Show/Hide Diff” lives on the right side of the editor header.
@@ -32,4 +38,3 @@
 ## 2025-12-01 21:58 EST
 - Added an Express + SQLite API layer that seeds from example_data.json and persists projects locally.
 - Updated storage service/App flow to use the API instead of localStorage, with loading/error handling.
-- Added server/seed npm scripts, new dependencies, and refreshed storageService tests (all passing).

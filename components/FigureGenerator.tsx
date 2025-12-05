@@ -290,7 +290,9 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          ref={(el) => (replaceInputs.current[fig.id] = el)}
+                          ref={(el) => {
+                            replaceInputs.current[fig.id] = el;
+                          }}
                           onChange={(e) => handleReplaceImage(fig.id, e.target.files?.[0])}
                         />
                       </label>

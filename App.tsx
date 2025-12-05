@@ -1,4 +1,4 @@
-
+'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Project, AppView, SectionView, Section } from './types';

@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Section, Project } from '../types';
+import { Section, Project, ChangeSource, SectionVersion } from '../types';
 import { generateSectionDraft, refineTextSelection } from '../services/geminiService';
 import { generateId } from '../services/storageService';
 import { getBibliographyOrder } from '../utils/citationUtils';
@@ -269,13 +269,13 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
   const handleStartNewVersion = () => {
     const hasSnapshotContent = content.trim().length > 0 || notes.trim().length > 0;
-    const snapshotVersion = {
+    const snapshotVersion: SectionVersion = {
       id: generateId(),
       timestamp: Date.now(),
       content,
       notes,
       commitMessage: 'Saved before starting new version',
-      source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
+      source: (section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER') as ChangeSource
     };
 
     const updatedVersions = hasSnapshotContent ? [snapshotVersion, ...section.versions] : [...section.versions];
