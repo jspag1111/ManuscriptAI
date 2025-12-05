@@ -3,17 +3,18 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "next lint"
+    "lint": "eslint .",
+    "test": "npm run lint"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
-    "@supabase/auth-helpers-nextjs": "^0.15.0",
-    "@supabase/auth-helpers-react": "^0.15.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
     "@supabase/ssr": "^0.5.0",
@@ -24,13 +25,14 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.14.0",
     "@types/react": "19.2.7",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.16",
+    "eslint": "^9.14.0",
+    "eslint-config-next": "^15.1.6",
     "jsdom": "^26.0.0",
     "typescript": "~5.8.2"
   }
