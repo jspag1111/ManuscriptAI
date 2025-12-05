@@ -3,14 +3,21 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
+    "predev": "node scripts/ensureNode.js",
     "dev": "next dev",
+    "prebuild": "node scripts/ensureNode.js",
     "server": "node server/index.js",
     "seed": "node server/index.js --seed-only",
     "build": "next build",
+    "prestart": "node scripts/ensureNode.js",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "preserver": "node scripts/ensureNode.js",
     "supabase:verify": "node scripts/verifySupabaseConnection.js"
   },
   "dependencies": {

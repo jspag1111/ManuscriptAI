@@ -47,3 +47,7 @@
 ## 2025-12-01 21:58 EST
 - Added an Express + SQLite API layer that seeds from example_data.json and persists projects locally.
 - Updated storage service/App flow to use the API instead of localStorage, with loading/error handling.
+## 2025-12-05 17:00 EST
+- Handle Supabase SSL errors and guard Node runtime: add optional Postgres CA/reject flags for self-signed certificates, set the
+  TLS fallback to allow Supabase provisioning in Vercel previews, and gate app entrypoints with a Node version check script.
+

@@ -28,12 +28,15 @@ This Next.js app provides an intelligent, iterative research manuscript creation
 3. Add Supabase credentials to `.env.local` (Anon key for the browser, service role for API routes). If you expose the Supabase
    Postgres connection string (`POSTGRES_URL_NON_POOLING`, `POSTGRES_PRISMA_URL`, or `POSTGRES_URL`), the API will automatically
    create and secure the `projects` table (including a read-only anon policy) during startup:
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=your-project-url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   POSTGRES_PRISMA_URL=your-supabase-postgres-connection-string
-   ```
+  ```bash
+  NEXT_PUBLIC_SUPABASE_URL=your-project-url
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+  SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+  POSTGRES_PRISMA_URL=your-supabase-postgres-connection-string
+  # Optional SSL helpers if your Postgres uses a self-signed certificate
+  # POSTGRES_SSL_CA="-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----"
+  # POSTGRES_SSL_REJECT_UNAUTHORIZED=true
+  ```
 4. Start the Next.js dev server (API routes and UI together):
    ```bash
    npm run dev
