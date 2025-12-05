@@ -28,6 +28,7 @@ export interface Database {
           description?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       invite_tokens: {
         Row: {
@@ -52,6 +53,7 @@ export interface Database {
           redeemed_by?: string | null;
           notes?: string | null;
         };
+        Relationships: [];
       };
     };
     Views: {
