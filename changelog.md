@@ -1,3 +1,6 @@
+## 2025-12-05 16:20 EST
+- Auto-provision the Supabase `projects` table (with anon read policy) using the provided Postgres connection string before seed or API operations and document the required connection env var alongside existing Supabase keys (**commit:** "Auto-provision Supabase projects table on startup").
+
 ## 2025-12-05 15:49 EST
 - Swapped the local SQLite layer for Supabase-backed project persistence, updated the API/server wrappers, and added Supabase-focused unit tests plus documentation for required environment variables (**commit:** "Adopt Supabase-backed project storage and tests").
 
