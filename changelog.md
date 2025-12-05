@@ -1,3 +1,6 @@
+## 2025-12-05 15:49 EST
+- Swapped the local SQLite layer for Supabase-backed project persistence, updated the API/server wrappers, and added Supabase-focused unit tests plus documentation for required environment variables (**commit:** "Adopt Supabase-backed project storage and tests").
+
 ## 2025-12-05 11:30 EST
 - Documented the Vercel build output for the Next.js app so deployments look for the correct directory (**commit:** "Add Vercel configuration for Next.js deployment").
 

@@ -1,10 +1,9 @@
-import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { getSupabaseServiceRoleClient, hasSupabaseConfig } from '../lib/supabaseServerClient.js';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'projects.sqlite');
+const TABLE_NAME = 'projects';
 const EXAMPLE_PATHS = [
   path.resolve(process.cwd(), 'example_data.json'),
   path.resolve(process.cwd(), 'example_data_2.json'),
@@ -87,68 +86,84 @@ const normalizeProject = (project = {}) => {
   };
 };
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
+const getClient = (clientOverride) => clientOverride ?? getSupabaseServiceRoleClient();
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.exec(`
-  CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    created INTEGER NOT NULL,
-    last_modified INTEGER NOT NULL,
-    data TEXT NOT NULL
-  );
-`);
+let defaultSeedPromise = null;
 
-const seedFromExampleData = () => {
-  const row = db.prepare('SELECT COUNT(*) as count FROM projects').get();
-  if (row?.count > 0) {
-    return;
+const ensureSeeded = async (clientOverride) => {
+  if (clientOverride) return;
+  if (!hasSupabaseConfig()) return;
+  if (!defaultSeedPromise) {
+    defaultSeedPromise = seedFromExampleData().catch((error) => {
+      console.warn('Skipping seed due to Supabase error', error);
+      return null;
+    });
+  }
+  await defaultSeedPromise;
+};
+
+const seedFromExampleData = async (clientOverride) => {
+  const client = getClient(clientOverride);
+  const { count, error } = await client
+    .from(TABLE_NAME)
+    .select('id', { count: 'exact', head: true });
+
+  if (error) {
+    throw new Error(`Failed to read Supabase projects table: ${error.message}`);
+  }
+
+  if ((count ?? 0) > 0) {
+    return false;
   }
 
   const examplePath = EXAMPLE_PATHS.find((p) => fs.existsSync(p));
   if (!examplePath) {
     console.warn('No example data file found. Skipping seed.');
-    return;
+    return false;
   }
 
-  try {
-    const raw = fs.readFileSync(examplePath, 'utf-8');
-    const projects = JSON.parse(raw);
-    const insert = db.prepare(`
-      INSERT OR REPLACE INTO projects (id, title, description, created, last_modified, data)
-      VALUES (@id, @title, @description, @created, @last_modified, @data)
-    `);
+  const raw = fs.readFileSync(examplePath, 'utf-8');
+  const projects = JSON.parse(raw);
+  const payload = projects.map((project) => {
+    const normalized = normalizeProject(project);
+    return {
+      id: normalized.id,
+      title: normalized.title || 'Untitled Project',
+      description: normalized.description || '',
+      created: normalized.created,
+      last_modified: normalized.lastModified,
+      data: normalized,
+    };
+  });
 
-    const insertMany = db.transaction((items) => {
-      for (const project of items) {
-        const normalized = normalizeProject(project);
-        insert.run({
-          id: normalized.id,
-          title: normalized.title || 'Untitled Project',
-          description: normalized.description || '',
-          created: normalized.created,
-          last_modified: normalized.lastModified,
-          data: JSON.stringify(normalized),
-        });
-      }
-    });
-
-    insertMany(projects);
-    console.log(`Seeded ${projects.length} project(s) from ${path.basename(examplePath)}`);
-  } catch (error) {
-    console.error('Failed to seed database from example data', error);
+  const { error: upsertError } = await client.from(TABLE_NAME).upsert(payload);
+  if (upsertError) {
+    throw new Error(`Failed to seed projects: ${upsertError.message}`);
   }
+
+  console.log(`Seeded ${projects.length} project(s) from ${path.basename(examplePath)}`);
+  return true;
 };
 
-const getProjects = () => {
-  const rows = db.prepare('SELECT data FROM projects ORDER BY last_modified DESC').all();
-  return rows.map((row) => normalizeProject(JSON.parse(row.data)));
+const getProjects = async (clientOverride) => {
+  const client = getClient(clientOverride);
+  await ensureSeeded(clientOverride);
+  const { data, error } = await client
+    .from(TABLE_NAME)
+    .select('data, last_modified')
+    .order('last_modified', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch projects: ${error.message}`);
+  }
+
+  return (data || []).map((row) => normalizeProject(row.data));
 };
 
-const saveProject = (project) => {
+const saveProject = async (project, clientOverride) => {
+  const client = getClient(clientOverride);
+  await ensureSeeded(clientOverride);
+
   const incoming = normalizeProject(project);
   const now = Date.now();
   const toPersist = {
@@ -157,31 +172,34 @@ const saveProject = (project) => {
     lastModified: now,
   };
 
-  db.prepare(`
-      INSERT INTO projects (id, title, description, created, last_modified, data)
-      VALUES (@id, @title, @description, @created, @last_modified, @data)
-      ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title,
-        description=excluded.description,
-        created=excluded.created,
-        last_modified=excluded.last_modified,
-        data=excluded.data
-    `).run({
-    id: toPersist.id,
-    title: toPersist.title || 'Untitled Project',
-    description: toPersist.description || '',
-    created: toPersist.created,
-    last_modified: toPersist.lastModified,
-    data: JSON.stringify(toPersist),
-  });
+  const { data, error } = await client
+    .from(TABLE_NAME)
+    .upsert({
+      id: toPersist.id,
+      title: toPersist.title || 'Untitled Project',
+      description: toPersist.description || '',
+      created: toPersist.created,
+      last_modified: toPersist.lastModified,
+      data: toPersist,
+    })
+    .select()
+    .single();
 
-  return toPersist;
+  if (error) {
+    throw new Error(`Failed to save project: ${error.message}`);
+  }
+
+  return normalizeProject(data.data);
 };
 
-const deleteProject = (id) => {
-  db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+const deleteProject = async (id, clientOverride) => {
+  const client = getClient(clientOverride);
+  await ensureSeeded(clientOverride);
+  const { error } = await client.from(TABLE_NAME).delete().eq('id', id);
+
+  if (error) {
+    throw new Error(`Failed to delete project: ${error.message}`);
+  }
 };
 
-seedFromExampleData();
-
-export { deleteProject, getProjects, normalizeProject, saveProject, seedFromExampleData, DB_PATH };
+export { deleteProject, getProjects, normalizeProject, saveProject, seedFromExampleData, TABLE_NAME };
