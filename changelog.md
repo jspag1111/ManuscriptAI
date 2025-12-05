@@ -1,3 +1,20 @@
+## 2025-12-06 00:40 EST — feat: enforce invites after sign-in
+- Move invite enforcement to the post-auth flow so anyone can create an account but only validated-token users (or admins) can open the app.
+- Bind invite tokens to the signed-in email, persist them in a cookie, and surface a dedicated access gate experience for authenticated users without a valid token.
+
+## 2025-12-05 23:59 EST — feat: allow open signup without invites
+- Added a public flag (`NEXT_PUBLIC_REQUIRE_INVITE`) that defaults to open access so new deployments no longer block sign-up behind invite tokens.
+- Updated the invite validation API to short-circuit when invites are disabled and refreshed the lockfile to clear npm warnings/vulnerabilities.
+
+## 2025-12-05 23:40 EST — chore: vercel config and lint upgrade
+- Added a `vercel.json` that declares the Next.js framework, build command, and `.vercel/output` directory so Vercel stops looking for a `dist` folder after builds.
+- Updated tooling to ESLint 9 with a flat-config bridge and Node 20 engine requirement while removing deprecated Supabase auth helper dependencies.
+
+## 2025-12-05 23:15 EST — fix: supabase build configuration
+- Loosened Supabase client creation to use typed schema relationships and safe JSON casting so API routes compile cleanly.
+- Added fallback Supabase credentials for build-time rendering and simplified the client provider to use a browser Supabase client without deprecated helpers.
+- Fixed React ref typing in the figure uploader and hardened section version typing to satisfy strict checks.
+
 ## 2025-12-05 18:10 EST — fix: supabase invite insert typing
 - Removed the erroneous generic parameter on the invite token insert call so Supabase type inference works during Next.js build lint/type checks.
 

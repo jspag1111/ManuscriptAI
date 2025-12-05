@@ -1,14 +1,14 @@
 import { cookies } from 'next/headers';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../types/supabase';
 
 const getSupabaseConfig = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dev-anon-key';
 
-  if (!url || !anonKey) {
-    throw new Error('Missing Supabase configuration for server client');
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.warn('Using fallback Supabase anon credentials; set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
   }
 
   return { url, anonKey };
@@ -41,7 +41,7 @@ const buildCookieAdapter = () => {
 
 export const getServerSupabase = () => {
   const { url, anonKey } = getSupabaseConfig();
-  return createServerClient<Database>(url, anonKey, {
+  return createServerClient<Database, 'public'>(url, anonKey, {
     cookies: buildCookieAdapter(),
   });
 };
@@ -49,12 +49,12 @@ export const getServerSupabase = () => {
 export const getServerActionSupabase = getServerSupabase;
 
 export const getServiceRoleSupabase = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    throw new Error('Missing Supabase service role configuration');
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-placeholder';
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('Using fallback Supabase service role credentials; set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
   }
-  return createClient<Database>(url, serviceKey, {
+  return createClient<Database, 'public'>(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 };
