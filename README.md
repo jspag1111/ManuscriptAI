@@ -1,10 +1,10 @@
 # ManuscriptAI (Next.js + Supabase)
 
-A production-ready manuscript drafting studio built on Next.js with Supabase authentication, storage, and invite-only access controls. The UI reuses the existing manuscript editor, figure manager, and export tooling while shifting persistence to Supabase tables.
+A production-ready manuscript drafting studio built on Next.js with Supabase authentication, storage, and optional invite access controls. The UI reuses the existing manuscript editor, figure manager, and export tooling while shifting persistence to Supabase tables.
 
 ## Stack overview
 - **Next.js 14 / App Router** for routing and serverless API routes
-- **Supabase** for auth (email/Google), invite token gating, and Postgres storage
+- **Supabase** for auth (email/Google), optional invite gating, and Postgres storage
 - **Lucide** icon system for consistent UI controls
 
 ## Prerequisites
@@ -49,7 +49,7 @@ create table if not exists public.invite_tokens (
   allowed_email text,
   created_at timestamptz default now(),
   expires_at timestamptz,
-  redeemed_by uuid,
+  redeemed_by text,
   notes text
 );
 ```
@@ -63,14 +63,14 @@ Recommended RLS policies:
 2. Start the dev server: `npm run dev`
 3. Visit `http://localhost:3000`.
 
-During development you can sign in with email or Google **after** validating an invite token. Use the `/admin` page (and an email listed in `ADMIN_ALLOWED_EMAILS`) to mint invite tokens.
+During development you can sign in with email or Google immediately. After signing in, anyone who is **not** listed in `ADMIN_ALLOWED_EMAILS` must provide a valid invite token (issued via `/admin`) before the workspace unlocks.
 
 ## Deployment
 - Vercel automatically detects the Next.js app. Set the same environment variables in Vercel.
 - Supabase service keys should be stored as encrypted environment variables and never exposed to the client.
 
 ## Feature tour
-- **Invite gate:** `/` prompts for an invite token before exposing Supabase Auth (email/Google).
+- **Invite gate:** Authentication is open to everyone, but non-admin accounts must validate an invite token after sign-in before the manuscript workspace loads. Admins listed in `ADMIN_ALLOWED_EMAILS` bypass the gate automatically.
 - **Admin dashboard:** `/admin` lists and issues invite tokens for authorized emails.
 - **Project persistence:** Client calls `/api/projects` which store serialized manuscripts in `projects.payload` tied to the authenticated user.
 - **Export & figures:** Existing editor, reference manager, figures, and export flows remain intact inside the `ManuscriptApp` client component.
