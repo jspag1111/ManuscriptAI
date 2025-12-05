@@ -25,12 +25,18 @@ This Next.js app provides an intelligent, iterative research manuscript creation
      data jsonb not null
    );
    ```
-3. Add Supabase credentials to `.env.local` (Anon key for the browser, service role for API routes):
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=your-project-url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   ```
+3. Add Supabase credentials to `.env.local` (Anon key for the browser, service role for API routes). If you expose the Supabase
+   Postgres connection string (`POSTGRES_URL_NON_POOLING`, `POSTGRES_PRISMA_URL`, or `POSTGRES_URL`), the API will automatically
+   create and secure the `projects` table (including a read-only anon policy) during startup:
+  ```bash
+  NEXT_PUBLIC_SUPABASE_URL=your-project-url
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+  SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+  POSTGRES_PRISMA_URL=your-supabase-postgres-connection-string
+  # Optional SSL helpers if your Postgres uses a self-signed certificate
+  # POSTGRES_SSL_CA="-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----"
+  # POSTGRES_SSL_REJECT_UNAUTHORIZED=true
+  ```
 4. Start the Next.js dev server (API routes and UI together):
    ```bash
    npm run dev
@@ -40,12 +46,17 @@ This Next.js app provides an intelligent, iterative research manuscript creation
    npm run seed   # populate Supabase.projects from example data
    npm run server # run the standalone Express API on :4000
    ```
+6. Confirm Supabase connectivity (requires valid env vars). This command uses the service role key to verify the projects table is reachable and reports the current row count:
+   ```bash
+   npm run supabase:verify
+   ```
 
 ## Deploying to Vercel
 
 - The included `vercel.json` pins the framework to Next.js and tells Vercel to use the `.next` build output so it no longer looks for a `dist` folder from the prior Vite setup.
 - Default settings work: set the Build Command to `npm run build` (or leave the framework-provided default) and the Output Directory to `.next`.
 - The API layer requires Supabase credentials (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`).
+- If Supabase is misconfigured, run `npm run supabase:verify` locally or in a Vercel deploy log to see whether the service role key can read the `projects` table (including schema provisioning errors).
 
 ## Environment variables
 

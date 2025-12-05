@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { getSupabaseServiceRoleClient, hasSupabaseConfig } from '../lib/supabaseServerClient.js';
+import { ensureProjectsTable } from '../lib/supabaseSchema.js';
 
 const TABLE_NAME = 'projects';
 const EXAMPLE_PATHS = [
@@ -93,6 +94,7 @@ let defaultSeedPromise = null;
 const ensureSeeded = async (clientOverride) => {
   if (clientOverride) return;
   if (!hasSupabaseConfig()) return;
+  await ensureProjectsTable();
   if (!defaultSeedPromise) {
     defaultSeedPromise = seedFromExampleData().catch((error) => {
       console.warn('Skipping seed due to Supabase error', error);

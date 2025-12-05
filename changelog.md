@@ -1,3 +1,9 @@
+## 2025-12-05 17:30 EST
+- Added a Supabase connectivity verifier script (`npm run supabase:verify`) that checks schema provisioning and service-role read access to the projects table so deployments can confirm credentials are working (**commit:** "Add Supabase connectivity verification utility").
+
+## 2025-12-05 16:20 EST
+- Auto-provision the Supabase `projects` table (with anon read policy) using the provided Postgres connection string before seed or API operations and document the required connection env var alongside existing Supabase keys (**commit:** "Auto-provision Supabase projects table on startup").
+
 ## 2025-12-05 15:49 EST
 - Swapped the local SQLite layer for Supabase-backed project persistence, updated the API/server wrappers, and added Supabase-focused unit tests plus documentation for required environment variables (**commit:** "Adopt Supabase-backed project storage and tests").
 
@@ -41,3 +47,7 @@
 ## 2025-12-01 21:58 EST
 - Added an Express + SQLite API layer that seeds from example_data.json and persists projects locally.
 - Updated storage service/App flow to use the API instead of localStorage, with loading/error handling.
+## 2025-12-05 17:00 EST
+- Handle Supabase SSL errors and guard Node runtime: add optional Postgres CA/reject flags for self-signed certificates, set the
+  TLS fallback to allow Supabase provisioning in Vercel previews, and gate app entrypoints with a Node version check script.
+
