@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase, getServiceRoleSupabase } from '../../../lib/supabaseServer';
+import type { Json } from '../../../types/supabase';
 import { Project } from '../../../types';
 
 const mapRowToProject = (row: any): Project => {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
   if (!userId) return new NextResponse('Unauthorized', { status: 401 });
 
   const supabase = getServiceRoleSupabase();
+  const payload = body as unknown as Json;
   const { error, data } = await supabase
     .from('projects')
     .upsert({
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
       user_id: userId,
       title: body.title,
       description: body.description,
-      payload: body,
+      payload,
       updated_at: new Date().toISOString(),
     })
     .select()
