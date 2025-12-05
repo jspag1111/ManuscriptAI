@@ -119,7 +119,7 @@ const App: React.FC = () => {
         setProjects(sortProjects(loaded));
       } catch (e) {
         console.error('Failed to load projects from database', e);
-        if (isMounted) setProjectError('Failed to load projects from local database.');
+        if (isMounted) setProjectError('Failed to load projects from the database.');
       } finally {
         if (isMounted) setIsLoadingProjects(false);
       }
@@ -334,7 +334,7 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {isLoadingProjects && (
               <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                Loading projects from local database...
+                Loading projects from the database...
               </div>
             )}
 

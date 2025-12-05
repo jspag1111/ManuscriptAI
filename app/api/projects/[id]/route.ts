@@ -13,7 +13,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Project id is required' }, { status: 400 });
     }
 
-    deleteProject(id);
+    await deleteProject(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete project', error);
