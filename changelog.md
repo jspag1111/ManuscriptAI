@@ -1,3 +1,6 @@
+## 2025-12-05 17:30 EST
+- Added a Supabase connectivity verifier script (`npm run supabase:verify`) that checks schema provisioning and service-role read access to the projects table so deployments can confirm credentials are working (**commit:** "Add Supabase connectivity verification utility").
+
 ## 2025-12-05 16:20 EST
 - Auto-provision the Supabase `projects` table (with anon read policy) using the provided Postgres connection string before seed or API operations and document the required connection env var alongside existing Supabase keys (**commit:** "Auto-provision Supabase projects table on startup").
 

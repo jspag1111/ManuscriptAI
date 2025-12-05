@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "supabase:verify": "node scripts/verifySupabaseConnection.js"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.1.0",
