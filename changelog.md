@@ -1,3 +1,6 @@
+## 2025-12-05 20:30 EST — fix: remove vercel output override
+- Drop the custom `outputDirectory` in `vercel.json` so Vercel uses the default Next.js build artifacts (restoring the generated `routes-manifest.json`).
+
 ## 2025-12-06 00:40 EST — feat: enforce invites after sign-in
 - Move invite enforcement to the post-auth flow so anyone can create an account but only validated-token users (or admins) can open the app.
 - Bind invite tokens to the signed-in email, persist them in a cookie, and surface a dedicated access gate experience for authenticated users without a valid token.
