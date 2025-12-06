@@ -1,3 +1,7 @@
+## 2025-12-06 17:22 EST
+- (Commit: Add Gemini fallback for drafting and refine) Added a shared Gemini generation helper that automatically falls back to gemini-2.5-flash when the pro model hits quota/permission limits so the Regenerate Draft and refine-in-place tools stop erroring; logged fallback attempts for visibility and kept API prompts unchanged.
+- Verified `npm run test` still passes after the update.
+
 ## 2025-12-02 01:19 EST
 - Simplified diff views to a single unified style without LLM vs user attribution or legends, keeping standard additions/removals highlighting only.
 - Swapped the toolbar placement so “Insert Citation” sits with formatting controls and “Show/Hide Diff” lives on the right side of the editor header.
