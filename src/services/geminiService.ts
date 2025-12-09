@@ -1,8 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
-import { Project, Reference, Section } from '../types';
-import { MODEL_TEXT_QUALITY, MODEL_TEXT_FAST, MODEL_IMAGE } from '../constants';
+import { MODEL_IMAGE, MODEL_TEXT_FAST, MODEL_TEXT_QUALITY } from '@/constants';
+import { Project, Reference, Section } from '@/types';
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured. Set NEXT_PUBLIC_GEMINI_API_KEY.');
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 type GenerateContentParams = Parameters<GoogleGenAI['models']['generateContent']>[0];
 type BaseGenerateContentParams = Omit<GenerateContentParams, 'model'>;

@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
-import { contentToHtml, htmlToContent } from '../utils/citationUtils';
-import { Reference } from '../types';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
+import { contentToHtml, htmlToContent } from '@/utils/citationUtils';
+import { Reference } from '@/types';
 
 export interface RichEditorHandle {
   insertAtCursor: (text: string) => void;

@@ -1,15 +1,14 @@
-
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Section, Project } from '../types';
-import { generateSectionDraft, refineTextSelection } from '../services/geminiService';
-import { generateId } from '../services/storageService';
-import { getBibliographyOrder } from '../utils/citationUtils';
-import { calculateTextStats } from '../utils/textStats';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, Eye, EyeOff, FileText, History, Quote, Save, Search, Sparkles, ToggleLeft, ToggleRight, Wand2, X } from 'lucide-react';
+import { AttributedDiffViewer } from './AttributedDiffViewer';
 import { Button } from './Button';
 import { DiffViewer } from './DiffViewer';
-import { AttributedDiffViewer } from './AttributedDiffViewer';
 import { RichEditor, RichEditorHandle } from './RichEditor';
-import { Wand2, Save, History, Quote, X, Search, Sparkles, FileText, ToggleLeft, ToggleRight, BookOpen, Eye, EyeOff } from 'lucide-react';
+import { generateSectionDraft, refineTextSelection } from '@/services/geminiService';
+import { generateId } from '@/services/storageService';
+import { Project, Section } from '@/types';
+import { getBibliographyOrder } from '@/utils/citationUtils';
+import { calculateTextStats } from '@/utils/textStats';
 
 interface SectionEditorProps {
   section: Section;

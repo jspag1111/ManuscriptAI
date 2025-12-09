@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, Reference, PaperSearchResult } from '../types';
-import { summarizeReference, generatePubMedSearchQuery } from '../services/geminiService';
-import { importReferenceMetadata, searchPubMed, fetchBatchReferenceMetadata } from '../services/referenceService';
-import { generateId } from '../services/storageService';
-import { getBibliographyOrder } from '../utils/citationUtils';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, ChevronDown, ChevronRight, Copy, Download, ExternalLink, Globe, Library, ListOrdered, Plus, Search, Sparkles, Tag, Trash2 } from 'lucide-react';
 import { Button } from './Button';
-import { BookOpen, Plus, Trash2, Sparkles, Copy, Download, Search, ChevronDown, ChevronRight, ListOrdered, Library, Globe, ExternalLink, Tag } from 'lucide-react';
+import { generatePubMedSearchQuery, summarizeReference } from '@/services/geminiService';
+import { fetchBatchReferenceMetadata, importReferenceMetadata, searchPubMed } from '@/services/referenceService';
+import { generateId } from '@/services/storageService';
+import { PaperSearchResult, Project, Reference } from '@/types';
+import { getBibliographyOrder } from '@/utils/citationUtils';
 
 interface ReferenceManagerProps {
   project: Project;

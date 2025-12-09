@@ -1,3 +1,9 @@
+## 2025-12-08 22:02 EST
+- (Commit: Migrate to Next.js with Tailwind and shared API) Migrated the app to Next.js 16 with the App Router, Tailwind CSS, and a new `src/app` structure while keeping the manuscript UI intact.
+- Replaced the Express server with Next.js API route handlers backed by the shared SQLite store and normalization helpers so the frontend and backend defaults stay aligned.
+- Added shared project normalization utilities plus a new Vitest suite (including a normalization test) and refreshed the Vitest config for the Next.js setup.
+- Updated tooling and docs (Next/Tailwind configs, ESLint, README) for the new stack and verified `npm test` passes after the migration.
+
 ## 2025-12-06 17:22 EST
 - (Commit: Add Gemini fallback for drafting and refine) Added a shared Gemini generation helper that automatically falls back to gemini-2.5-flash when the pro model hits quota/permission limits so the Regenerate Draft and refine-in-place tools stop erroring; logged fallback attempts for visibility and kept API prompts unchanged.
 - Verified `npm run test` still passes after the update.
