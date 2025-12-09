@@ -1,3 +1,6 @@
+## 2025-12-08 22:10 EST
+- (Commit: Fix missing Info icon in sidebar) Added the missing `Info` icon import to the Manuscript workspace sidebar to resolve the runtime reference error when opening a project.
+
 ## 2025-12-08 22:02 EST
 - (Commit: Migrate to Next.js with Tailwind and shared API) Migrated the app to Next.js 16 with the App Router, Tailwind CSS, and a new `src/app` structure while keeping the manuscript UI intact.
 - Replaced the Express server with Next.js API route handlers backed by the shared SQLite store and normalization helpers so the frontend and backend defaults stay aligned.
