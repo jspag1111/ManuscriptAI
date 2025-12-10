@@ -1,3 +1,6 @@
+## 2025-12-09 22:55 EST
+- (Commit: Fix typed route params for Next.js 16) Updated the projects DELETE API handler to use the Next.js 16 typedRoutes request/context signature and moved `typedRoutes` out of `experimental` in `next.config.mjs` to satisfy Vercel builds.
+
 ## 2025-12-08 22:10 EST
 - (Commit: Fix missing Info icon in sidebar) Added the missing `Info` icon import to the Manuscript workspace sidebar to resolve the runtime reference error when opening a project.
 

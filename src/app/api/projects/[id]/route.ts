@@ -1,12 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { projectStore } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    projectStore.delete(params.id);
+    const { id } = await params;
+    projectStore.delete(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete project', error);
