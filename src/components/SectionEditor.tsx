@@ -6,7 +6,7 @@ import { DiffViewer } from './DiffViewer';
 import { RichEditor, RichEditorHandle } from './RichEditor';
 import { generateSectionDraft, refineTextSelection } from '@/services/geminiService';
 import { generateId } from '@/services/storageService';
-import { Project, Section } from '@/types';
+import { Project, Section, SectionVersion } from '@/types';
 import { getBibliographyOrder } from '@/utils/citationUtils';
 import { calculateTextStats } from '@/utils/textStats';
 
@@ -268,7 +268,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
   const handleStartNewVersion = () => {
     const hasSnapshotContent = content.trim().length > 0 || notes.trim().length > 0;
-    const snapshotVersion = {
+    const snapshotVersion: SectionVersion = {
       id: generateId(),
       timestamp: Date.now(),
       content,
@@ -277,7 +277,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
     };
 
-    const updatedVersions = hasSnapshotContent ? [snapshotVersion, ...section.versions] : [...section.versions];
+    const updatedVersions: SectionVersion[] = hasSnapshotContent ? [snapshotVersion, ...section.versions] : [...section.versions];
 
     const nextSection: Section = {
       ...section,

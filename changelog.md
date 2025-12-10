@@ -10,6 +10,12 @@
 - Added shared project normalization utilities plus a new Vitest suite (including a normalization test) and refreshed the Vitest config for the Next.js setup.
 - Updated tooling and docs (Next/Tailwind configs, ESLint, README) for the new stack and verified `npm test` passes after the migration.
 
+## 2025-12-09 23:09 EST
+- (Commit: Fix build errors and align vitest tooling) Fixed the figure replacement input ref and version snapshot typing so Next.js/TypeScript builds complete successfully.
+- Typed SQLite seed/query results to keep the persisted project data flow aligned between the backend store and frontend normalization.
+- Aligned the Vitest/Vite toolchain (move to Vite 5.x, set v8 coverage provider) to resolve plugin type conflicts; regenerated lockfile and typed-routes import in `next-env.d.ts`.
+- Verified `npm run build` and `npm run test` complete without errors.
+
 ## 2025-12-06 17:22 EST
 - (Commit: Add Gemini fallback for drafting and refine) Added a shared Gemini generation helper that automatically falls back to gemini-2.5-flash when the pro model hits quota/permission limits so the Regenerate Draft and refine-in-place tools stop erroring; logged fallback attempts for visibility and kept API prompts unchanged.
 - Verified `npm run test` still passes after the update.

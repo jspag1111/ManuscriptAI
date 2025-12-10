@@ -36,8 +36,8 @@ const findSeedFile = (): string | null => {
 
 const seedDatabase = (database: Database.Database) => {
   if (seeded) return;
-  const row = database.prepare('SELECT COUNT(*) as count FROM projects').get();
-  if (row?.count > 0) {
+  const row = database.prepare('SELECT COUNT(*) as count FROM projects').get() as { count?: number } | undefined;
+  if ((row?.count ?? 0) > 0) {
     seeded = true;
     return;
   }
@@ -90,7 +90,7 @@ const getDatabase = (): Database.Database => {
 
 const getAllProjects = (): Project[] => {
   const database = getDatabase();
-  const rows = database.prepare('SELECT data FROM projects ORDER BY last_modified DESC').all();
+  const rows = database.prepare('SELECT data FROM projects ORDER BY last_modified DESC').all() as { data: string }[];
   return rows.map((row) => normalizeProject(JSON.parse(row.data)));
 };
 
