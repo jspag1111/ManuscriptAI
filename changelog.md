@@ -1,3 +1,13 @@
+## 2025-12-09 23:09 EST
+    15 +- Typed SQLite seed/query results to keep the persisted project data flow aligned between th
+        e backend store and frontend normalization.
+    16 +- Aligned the Vitest/Vite toolchain (move to Vite 5.x, set v8 coverage provider) to resolve
+        plugin type conflicts; regenerated lockfile and typed-routes import in `next-env.d.ts`.
+    17 +- Verified `npm run build` and `npm run test` complete without errors.
+
+## 2025-12-10 23:15 EST
+- (Commit: Fix Vercel dist directory error) Configured Next.js to emit its build artifacts to a `dist` directory so the existing Vercel project settings detect the output, keeping the standalone backend bundle and frontend assets aligned; verified with `npm run build` and `npm run test`.
+
 ## 2025-12-09 22:55 EST
 - (Commit: Fix typed route params for Next.js 16) Updated the projects DELETE API handler to use the Next.js 16 typedRoutes request/context signature and moved `typedRoutes` out of `experimental` in `next.config.mjs` to satisfy Vercel builds.
 
