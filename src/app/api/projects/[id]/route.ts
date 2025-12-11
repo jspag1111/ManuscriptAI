@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    projectStore.delete(id);
+    await projectStore.delete(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete project', error);

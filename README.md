@@ -4,11 +4,11 @@
 
 # ManuscriptAI (Next.js)
 
-Next.js 16 app for drafting and managing research manuscripts with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. A built-in SQLite store keeps the UI and API in sync, and the project is wired for modern managed backends (Turso/Supabase) and auth (Clerk) via environment-driven API endpoints.
+Next.js 16 app for drafting and managing research manuscripts with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. A Turso (libSQL) store keeps the UI and API in sync, and the project is wired for modern managed backends (Clerk coming soon) via environment-driven API endpoints.
 
 ## Tech Stack
 - Next.js App Router + React 19, Tailwind CSS for styling
-- SQLite (better-sqlite3) with server route handlers at `/api/projects`
+- Turso (libSQL via `@libsql/client`) with server route handlers at `/api/projects`
 - Google Gemini client utilities for drafting, selection refinement, and search assistance
 - Testing: Vitest + Testing Library (jsdom)
 
@@ -18,14 +18,22 @@ Next.js 16 app for drafting and managing research manuscripts with AI-assisted t
    npm install
    ```
 2. **Configure environment**
-   - `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-powered features
-   - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API (e.g., Turso/Supabase edge function proxy).
+   - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for the Turso database (required for dev + Vercel).
+   - `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-powered features.
+   - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
 3. **Run the app**
    ```bash
    npm run dev
    ```
    - API routes: `http://localhost:3000/api/projects`
-   - Data lives in `data/projects.sqlite` (auto-created and seeded from `example_data*.json` if empty).
+   - Data lives in Turso. If the database is empty, it will seed from `example_data*.json`.
+
+### Migrating existing local SQLite data to Turso
+If you already have data in `data/projects.sqlite`, push it to Turso before switching:
+```bash
+TURSO_DATABASE_URL="..." TURSO_AUTH_TOKEN="..." node scripts/migrate-to-turso.mjs
+```
+The script reads from `data/projects.sqlite` and upserts every project into your Turso database.
 
 ## Scripts
 - `npm run dev` – start Next.js in dev mode

@@ -1,17 +1,19 @@
 import fs from 'fs';
 import path from 'path';
-import Database from 'better-sqlite3';
+import { createClient, type Client } from '@libsql/client';
 import { normalizeProject } from './projects';
 import type { Project } from '@/types';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'projects.sqlite');
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
 
-let db: Database.Database | null = null;
+let clientPromise: Promise<Client> | null = null;
 let seeded = false;
 
-const ensureSchema = (database: Database.Database) => {
-  database.exec(`
+const ensureSchema = async (client: Client) => {
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -34,10 +36,46 @@ const findSeedFile = (): string | null => {
   return null;
 };
 
-const seedDatabase = (database: Database.Database) => {
+const persistProjects = async (client: Client, projects: Project[]) => {
+  if (projects.length === 0) return;
+
+  const tx = await client.transaction();
+  try {
+    for (const project of projects) {
+      await tx.execute({
+        sql: `
+          INSERT INTO projects (id, title, description, created, last_modified, data)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title=excluded.title,
+            description=excluded.description,
+            created=excluded.created,
+            last_modified=excluded.last_modified,
+            data=excluded.data
+        `,
+        args: [
+          project.id,
+          project.title,
+          project.description,
+          project.created,
+          project.lastModified,
+          JSON.stringify(project),
+        ],
+      });
+    }
+
+    await tx.commit();
+  } catch (error) {
+    await tx.rollback();
+    throw error;
+  }
+};
+
+const seedDatabase = async (client: Client) => {
   if (seeded) return;
-  const row = database.prepare('SELECT COUNT(*) as count FROM projects').get() as { count?: number } | undefined;
-  if ((row?.count ?? 0) > 0) {
+  const row = await client.execute('SELECT COUNT(*) as count FROM projects');
+  const count = Number(row.rows?.[0]?.count ?? row.rows?.[0]?.['count(*)'] ?? 0);
+  if (count > 0) {
     seeded = true;
     return;
   }
@@ -50,52 +88,39 @@ const seedDatabase = (database: Database.Database) => {
 
   const raw = fs.readFileSync(seedPath, 'utf-8');
   const projects: Partial<Project>[] = JSON.parse(raw);
-  const insert = database.prepare(`
-    INSERT OR REPLACE INTO projects (id, title, description, created, last_modified, data)
-    VALUES (@id, @title, @description, @created, @last_modified, @data)
-  `);
-
-  const insertMany = database.transaction((items: Partial<Project>[]) => {
-    for (const item of items) {
-      const normalized = normalizeProject(item);
-      insert.run({
-        id: normalized.id,
-        title: normalized.title,
-        description: normalized.description,
-        created: normalized.created,
-        last_modified: normalized.lastModified,
-        data: JSON.stringify(normalized),
-      });
-    }
-  });
-
-  insertMany(projects);
+  const normalized = projects.map((project) => normalizeProject(project));
+  await persistProjects(client, normalized);
   seeded = true;
 };
 
-const getDatabase = (): Database.Database => {
-  if (!db) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    ensureSchema(db);
+const getClient = async (): Promise<Client> => {
+  if (!clientPromise) {
+    if (!TURSO_URL) {
+      throw new Error('TURSO_DATABASE_URL is not set; please configure your Turso database URL.');
+    }
+
+    clientPromise = (async () => {
+      const client = createClient({
+        url: TURSO_URL,
+        authToken: TURSO_AUTH_TOKEN,
+      });
+      await ensureSchema(client);
+      await seedDatabase(client);
+      return client;
+    })();
   }
 
-  if (!seeded) {
-    seedDatabase(db);
-  }
-
-  return db;
+  return clientPromise;
 };
 
-const getAllProjects = (): Project[] => {
-  const database = getDatabase();
-  const rows = database.prepare('SELECT data FROM projects ORDER BY last_modified DESC').all() as { data: string }[];
-  return rows.map((row) => normalizeProject(JSON.parse(row.data)));
+const getAllProjects = async (): Promise<Project[]> => {
+  const client = await getClient();
+  const rows = await client.execute('SELECT data FROM projects ORDER BY last_modified DESC');
+  return rows.rows.map((row) => normalizeProject(JSON.parse(String(row.data))));
 };
 
-const saveProjectRecord = (project: Partial<Project>): Project => {
-  const database = getDatabase();
+const saveProjectRecord = async (project: Partial<Project>): Promise<Project> => {
+  const client = await getClient();
   const incoming = normalizeProject(project);
   const now = Date.now();
   const toPersist: Project = {
@@ -104,37 +129,42 @@ const saveProjectRecord = (project: Partial<Project>): Project => {
     lastModified: now,
   };
 
-  database
-    .prepare(`
+  await client.execute({
+    sql: `
       INSERT INTO projects (id, title, description, created, last_modified, data)
-      VALUES (@id, @title, @description, @created, @last_modified, @data)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title=excluded.title,
         description=excluded.description,
         created=excluded.created,
         last_modified=excluded.last_modified,
         data=excluded.data
-    `)
-    .run({
-      id: toPersist.id,
-      title: toPersist.title,
-      description: toPersist.description,
-      created: toPersist.created,
-      last_modified: toPersist.lastModified,
-      data: JSON.stringify(toPersist),
-    });
+    `,
+    args: [
+      toPersist.id,
+      toPersist.title,
+      toPersist.description,
+      toPersist.created,
+      toPersist.lastModified,
+      JSON.stringify(toPersist),
+    ],
+  });
 
   return toPersist;
 };
 
-const deleteProjectRecord = (id: string) => {
-  const database = getDatabase();
-  database.prepare('DELETE FROM projects WHERE id = ?').run(id);
+const deleteProjectRecord = async (id: string) => {
+  const client = await getClient();
+  await client.execute({
+    sql: 'DELETE FROM projects WHERE id = ?',
+    args: [id],
+  });
 };
 
 export const projectStore = {
   getAll: getAllProjects,
   save: saveProjectRecord,
   delete: deleteProjectRecord,
+  dbUrl: TURSO_URL ?? 'unset',
   dbPath: DB_PATH,
 };

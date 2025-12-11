@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
+    "@libsql/client": "^0.15.15",
     "better-sqlite3": "^12.5.0",
     "lucide-react": "^0.554.0",
     "next": "16.0.8",
@@ -19,10 +20,10 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.6",
     "@types/react-dom": "^19.0.3",
