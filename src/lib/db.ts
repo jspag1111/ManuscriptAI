@@ -13,9 +13,11 @@ let clientPromise: Promise<Client> | null = null;
 let seeded = false;
 
 const ensureSchema = async (client: Client) => {
+  // Create base table if missing
   await client.execute(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
+      user_id TEXT,
       title TEXT NOT NULL,
       description TEXT,
       created INTEGER NOT NULL,
@@ -23,6 +25,15 @@ const ensureSchema = async (client: Client) => {
       data TEXT NOT NULL
     );
   `);
+
+  // Backfill user_id for existing deployments that pre-date auth
+  const columns = await client.execute('PRAGMA table_info(projects)');
+  const hasUserId = columns.rows.some((row: any) => row.name === 'user_id');
+  if (!hasUserId) {
+    await client.execute('ALTER TABLE projects ADD COLUMN user_id TEXT');
+  }
+
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
 };
 
 const findSeedFile = (): string | null => {
@@ -36,7 +47,7 @@ const findSeedFile = (): string | null => {
   return null;
 };
 
-const persistProjects = async (client: Client, projects: Project[]) => {
+const persistProjects = async (client: Client, projects: Project[], userId: string | null) => {
   if (projects.length === 0) return;
 
   const tx = await client.transaction();
@@ -44,9 +55,10 @@ const persistProjects = async (client: Client, projects: Project[]) => {
     for (const project of projects) {
       await tx.execute({
         sql: `
-          INSERT INTO projects (id, title, description, created, last_modified, data)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO projects (id, user_id, title, description, created, last_modified, data)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
+            user_id=COALESCE(excluded.user_id, projects.user_id),
             title=excluded.title,
             description=excluded.description,
             created=excluded.created,
@@ -55,6 +67,7 @@ const persistProjects = async (client: Client, projects: Project[]) => {
         `,
         args: [
           project.id,
+          userId,
           project.title,
           project.description,
           project.created,
@@ -89,7 +102,7 @@ const seedDatabase = async (client: Client) => {
   const raw = fs.readFileSync(seedPath, 'utf-8');
   const projects: Partial<Project>[] = JSON.parse(raw);
   const normalized = projects.map((project) => normalizeProject(project));
-  await persistProjects(client, normalized);
+  await persistProjects(client, normalized, null);
   seeded = true;
 };
 
@@ -113,13 +126,36 @@ const getClient = async (): Promise<Client> => {
   return clientPromise;
 };
 
-const getAllProjects = async (): Promise<Project[]> => {
+const getAllProjects = async (userId: string): Promise<Project[]> => {
+  if (!userId) {
+    throw new Error('User id is required to load projects.');
+  }
   const client = await getClient();
-  const rows = await client.execute('SELECT data FROM projects ORDER BY last_modified DESC');
+  const rows = await client.execute({
+    sql: `
+      SELECT data FROM projects
+      WHERE user_id = ? OR user_id IS NULL
+      ORDER BY last_modified DESC
+    `,
+    args: [userId],
+  });
   return rows.rows.map((row) => normalizeProject(JSON.parse(String(row.data))));
 };
 
-const saveProjectRecord = async (project: Partial<Project>): Promise<Project> => {
+const getProjectOwner = async (client: Client, id: string): Promise<string | null> => {
+  const row = await client.execute({
+    sql: 'SELECT user_id FROM projects WHERE id = ? LIMIT 1',
+    args: [id],
+  });
+  const value = row.rows?.[0]?.user_id ?? null;
+  return value ? String(value) : null;
+};
+
+const saveProjectRecord = async (project: Partial<Project>, userId: string): Promise<Project> => {
+  if (!userId) {
+    throw new Error('User id is required to save a project.');
+  }
+
   const client = await getClient();
   const incoming = normalizeProject(project);
   const now = Date.now();
@@ -129,11 +165,17 @@ const saveProjectRecord = async (project: Partial<Project>): Promise<Project> =>
     lastModified: now,
   };
 
+  const owner = incoming.id ? await getProjectOwner(client, incoming.id) : null;
+  if (owner && owner !== userId) {
+    throw new Error('Forbidden: project belongs to another user.');
+  }
+
   await client.execute({
     sql: `
-      INSERT INTO projects (id, title, description, created, last_modified, data)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (id, user_id, title, description, created, last_modified, data)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        user_id=excluded.user_id,
         title=excluded.title,
         description=excluded.description,
         created=excluded.created,
@@ -142,6 +184,7 @@ const saveProjectRecord = async (project: Partial<Project>): Promise<Project> =>
     `,
     args: [
       toPersist.id,
+      userId,
       toPersist.title,
       toPersist.description,
       toPersist.created,
@@ -153,11 +196,18 @@ const saveProjectRecord = async (project: Partial<Project>): Promise<Project> =>
   return toPersist;
 };
 
-const deleteProjectRecord = async (id: string) => {
+const deleteProjectRecord = async (id: string, userId: string) => {
+  if (!userId) {
+    throw new Error('User id is required to delete a project.');
+  }
   const client = await getClient();
+  const owner = await getProjectOwner(client, id);
+  if (owner && owner !== userId) {
+    throw new Error('Forbidden: project belongs to another user.');
+  }
   await client.execute({
-    sql: 'DELETE FROM projects WHERE id = ?',
-    args: [id],
+    sql: 'DELETE FROM projects WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
+    args: [id, userId],
   });
 };
 

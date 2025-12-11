@@ -1,4 +1,5 @@
 ## 2025-12-11
+- Added Clerk authentication (App Router) with middleware proxy, layout provider, sign-in/up routes, and UI gating plus Google SSO support guidance; API routes now require the current Clerk user and scope Turso records by user ID.
 - Moved project persistence to Turso via `@libsql/client`, keeping the existing schema and async API handlers aligned with Next.js 16 server routes.
 - Added `scripts/migrate-to-turso.mjs` to upsert all projects from `data/projects.sqlite` into the configured Turso database before switching environments.
 - Documented the new Turso env vars and migration flow in `README.md`.
