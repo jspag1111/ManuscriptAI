@@ -111,6 +111,7 @@ Guidelines:
 
 - If the changelog has an **“Unreleased”** or similar section, add entries there.
 - Otherwise, create or update a version section in a format consistent with the existing file.
+- Give the date, time, and commit name
 
 Example entry style (adapt to existing format):
 

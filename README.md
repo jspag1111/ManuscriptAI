@@ -19,8 +19,10 @@ Next.js 16 app for drafting and managing research manuscripts with AI-assisted t
    ```
 2. **Configure environment**
    - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for the Turso database (required for dev + Vercel).
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` for Clerk authentication (store only in `.env.local`/Vercel env vars).
    - `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-powered features.
    - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
+   - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
 3. **Run the app**
    ```bash
    npm run dev
@@ -46,3 +48,4 @@ The script reads from `data/projects.sqlite` and upserts every project into your
 - The client uses `/api/projects` by default; override with `NEXT_PUBLIC_API_BASE` to point at hosted APIs (Turso, Supabase functions, Clerk-protected endpoints, etc.).
 - DOCX export and figure upload are purely client-side; data persistence is handled through the SQLite-backed API.
 - The database is stored under `data/` so it can be mounted or swapped out when deploying.
+- Authentication is handled by Clerk (App Router). Sign-in and sign-up are available at `/sign-in` and `/sign-up`, with modal triggers in the header. All API routes enforce the signed-in user and scope data to the current Clerk user ID.
