@@ -1,3 +1,8 @@
+## 2025-12-12
+- Restyled the authentication, landing, and workspace shells with modern gradients, glassy cards, and responsive layouts for desktop, tablet, and mobile.
+- Refreshed the project dashboard and in-app sidebar to feel more polished, with clearer hierarchy, quick actions, and improved section navigation.
+- Added a collapsible Gemini drafter card inside each section so AI generation stays hidden until toggled, while keeping save/version controls always available.
+
 ## 2025-12-11
 - Fixed linting for Next.js 16/ESLint 9 by switching to a flat config, updating the lint script to use `eslint .`, and addressing new rule violations (history viewer state reset, icon alt warning, metadata copy escaping, RichEditor handler order, SectionEditor effect deps) so `npm run lint` runs cleanly again.
 - Added Clerk authentication (App Router) with middleware proxy, layout provider, sign-in/up routes, and UI gating plus Google SSO support guidance; API routes now require the current Clerk user and scope Turso records by user ID.
