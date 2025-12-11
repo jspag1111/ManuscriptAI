@@ -297,7 +297,7 @@ export const MetadataEditor: React.FC<MetadataEditorProps> = ({ project, onUpdat
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Specific Formatting Requirements</label>
-                            <p className="text-xs text-slate-500 mb-2">Paste specific guidelines here (e.g., "Abstract max 250 words", "Harvard citation style"). The AI will use this when drafting sections.</p>
+                            <p className="text-xs text-slate-500 mb-2">Paste specific guidelines here (e.g., &quot;Abstract max 250 words&quot;, &quot;Harvard citation style&quot;). The AI will use this when drafting sections.</p>
                             <textarea 
                                 className="w-full p-3 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-blue-500 h-32"
                                 value={project.settings.formattingRequirements}

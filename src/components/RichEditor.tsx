@@ -53,6 +53,17 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(({
     }
   };
 
+  function handleInput() {
+    if (editorRef.current) {
+      isInternalUpdate.current = true;
+      const newContent = htmlToContent(editorRef.current);
+      if (newContent !== content) {
+        onChange(newContent);
+      }
+      saveCursor();
+    }
+  }
+
   useImperativeHandle(ref, () => ({
     insertAtCursor: (text: string) => {
       if (!editorRef.current) return;
@@ -156,17 +167,6 @@ export const RichEditor = forwardRef<RichEditorHandle, RichEditorProps>(({
         isInternalUpdate.current = false;
     }
   }, [content, bibliographyOrder, renderCitations]);
-
-  const handleInput = () => {
-    if (editorRef.current) {
-      isInternalUpdate.current = true;
-      const newContent = htmlToContent(editorRef.current);
-      if (newContent !== content) {
-          onChange(newContent);
-      }
-      saveCursor();
-    }
-  };
 
   const handleClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
