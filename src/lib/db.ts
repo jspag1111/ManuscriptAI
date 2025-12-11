@@ -8,6 +8,7 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'projects.sqlite');
 const TURSO_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+const SEED_PROJECT_OWNER_ID = process.env.SEED_PROJECT_OWNER_ID || process.env.DEFAULT_PROJECT_OWNER_ID || null;
 
 let clientPromise: Promise<Client> | null = null;
 let seeded = false;
@@ -99,10 +100,17 @@ const seedDatabase = async (client: Client) => {
     return;
   }
 
+  // Avoid creating ownerless records; require an explicit owner for seeds.
+  if (!SEED_PROJECT_OWNER_ID) {
+    console.warn('Seed data found but SEED_PROJECT_OWNER_ID/DEFAULT_PROJECT_OWNER_ID is not set; skipping seeding to avoid shared records.');
+    seeded = true;
+    return;
+  }
+
   const raw = fs.readFileSync(seedPath, 'utf-8');
   const projects: Partial<Project>[] = JSON.parse(raw);
   const normalized = projects.map((project) => normalizeProject(project));
-  await persistProjects(client, normalized, null);
+  await persistProjects(client, normalized, SEED_PROJECT_OWNER_ID);
   seeded = true;
 };
 
@@ -131,10 +139,25 @@ const getAllProjects = async (userId: string): Promise<Project[]> => {
     throw new Error('User id is required to load projects.');
   }
   const client = await getClient();
+
+  // If a seed owner is configured, automatically claim any orphaned rows so they stop
+  // leaking into other users' boards and remain visible only to the intended account.
+  if (SEED_PROJECT_OWNER_ID && userId === SEED_PROJECT_OWNER_ID) {
+    const orphanCount = await client.execute('SELECT COUNT(*) as count FROM projects WHERE user_id IS NULL');
+    const count = Number(orphanCount.rows?.[0]?.count ?? orphanCount.rows?.[0]?.['count(*)'] ?? 0);
+    if (count > 0) {
+      await client.execute({
+        sql: 'UPDATE projects SET user_id = ? WHERE user_id IS NULL',
+        args: [userId],
+      });
+      console.info(`Claimed ${count} orphaned project(s) for seed owner ${userId}.`);
+    }
+  }
+
   const rows = await client.execute({
     sql: `
       SELECT data FROM projects
-      WHERE user_id = ? OR user_id IS NULL
+      WHERE user_id = ?
       ORDER BY last_modified DESC
     `,
     args: [userId],
@@ -206,7 +229,7 @@ const deleteProjectRecord = async (id: string, userId: string) => {
     throw new Error('Forbidden: project belongs to another user.');
   }
   await client.execute({
-    sql: 'DELETE FROM projects WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
+    sql: 'DELETE FROM projects WHERE id = ? AND user_id = ?',
     args: [id, userId],
   });
 };

@@ -5,6 +5,7 @@
 - Added `scripts/migrate-to-turso.mjs` to upsert all projects from `data/projects.sqlite` into the configured Turso database before switching environments.
 - Documented the new Turso env vars and migration flow in `README.md`.
 - Migration script now auto-loads `.env.local` via `@next/env` so locally defined Turso credentials are picked up without manual exporting.
+- Scoped seeded projects to a configured Clerk user (`SEED_PROJECT_OWNER_ID`/`DEFAULT_PROJECT_OWNER_ID`) to prevent example data from appearing on new accounts, updated queries to return only owned projects, and added a backfill script to reclaim orphaned seed rows. Documented the env and script usage in `README.md`.
 
 ## 2025-12-10 23:40 EST
 - (Commit: Fix Vercel runtime detection) Added a repository `vercel.json` so deployments explicitly use the Next.js framework with `.next` as the output directory, and reverted the temporary `distDir` override to restore the expected server output; verified with `npm run build` and `npm run test`.

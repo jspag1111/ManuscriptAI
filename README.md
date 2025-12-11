@@ -20,9 +20,10 @@ Next.js 16 app for drafting and managing research manuscripts with AI-assisted t
 2. **Configure environment**
    - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for the Turso database (required for dev + Vercel).
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` for Clerk authentication (store only in `.env.local`/Vercel env vars).
-   - `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-powered features.
-   - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
-   - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
+- `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-powered features.
+- Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
+- To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
+- Optional: `SEED_PROJECT_OWNER_ID` (or `DEFAULT_PROJECT_OWNER_ID`) to claim seeded example projects for a specific Clerk user; set this to your own user id (e.g., `user_...`) to keep seed data private.
 3. **Run the app**
    ```bash
    npm run dev
@@ -36,6 +37,13 @@ If you already have data in `data/projects.sqlite`, push it to Turso before swit
 TURSO_DATABASE_URL="..." TURSO_AUTH_TOKEN="..." node scripts/migrate-to-turso.mjs
 ```
 The script reads from `data/projects.sqlite` and upserts every project into your Turso database.
+
+### Backfilling orphaned seed projects
+If you previously seeded data before enabling Clerk, assign those projects to your account so they no longer appear for new users:
+```bash
+SEED_PROJECT_OWNER_ID="user_abc123" node scripts/backfill-orphaned-projects.mjs
+```
+Replace `user_abc123` with the Clerk user id of the account that should keep the seed projects.
 
 ## Scripts
 - `npm run dev` – start Next.js in dev mode
