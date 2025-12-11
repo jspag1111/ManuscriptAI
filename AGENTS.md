@@ -158,7 +158,7 @@ Agents must obey the following git workflow rules:
    * After a successful commit and test run, push:
 
    ```bash
-   git push
+   git push origin [current branch]
    ```
 
    * Do not create or switch branches unless explicitly requested.
