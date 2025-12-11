@@ -1,20 +1,21 @@
 
+'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Project, AppView, SectionView, Section } from './types';
-import { getProjects, saveProject, createNewProject, deleteProject, generateId } from './services/storageService';
-import { exportProjectToWord } from './services/exportService';
-import { DEFAULT_SECTIONS } from './constants';
-import { Button } from './components/Button';
-import { SectionEditor } from './components/SectionEditor';
-import { ReferenceManager } from './components/ReferenceManager';
-import { FigureGenerator } from './components/FigureGenerator';
-import { HistoryViewer } from './components/HistoryViewer';
-import { MetadataEditor } from './components/MetadataEditor';
-import { Plus, Layout, Settings, FileText, Trash2, ArrowLeft, BookOpen, Image, Save, X, Edit2, Check, Download, Info } from 'lucide-react';
-import { calculateTextStats } from './utils/textStats';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DEFAULT_SECTIONS } from '@/constants';
+import { Button } from '@/components/Button';
+import { FigureGenerator } from '@/components/FigureGenerator';
+import { HistoryViewer } from '@/components/HistoryViewer';
+import { MetadataEditor } from '@/components/MetadataEditor';
+import { ReferenceManager } from '@/components/ReferenceManager';
+import { SectionEditor } from '@/components/SectionEditor';
+import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '@/services/storageService';
+import { exportProjectToWord } from '@/services/exportService';
+import { AppView, Project, Section, SectionView } from '@/types';
+import { calculateTextStats } from '@/utils/textStats';
+import { ArrowLeft, BookOpen, Check, Download, Edit2, FileText, Image, Info, Plus, Save, Trash2, X } from 'lucide-react';
 
-const App: React.FC = () => {
+const ManuscriptApp: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [view, setView] = useState<AppView>(AppView.DASHBOARD);
@@ -707,4 +708,4 @@ const ClockIcon = ({ size, className }: { size: number, className?: string }) =>
   </svg>
 );
 
-export default App;
+export default ManuscriptApp;

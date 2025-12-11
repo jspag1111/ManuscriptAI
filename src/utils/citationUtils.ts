@@ -1,5 +1,4 @@
-
-import { Section } from '../types';
+import { Section } from '@/types';
 
 // Regex to find a single citation marker [[ref:uuid]]
 export const CITATION_REGEX = /\[\[ref:([a-zA-Z0-9-]+)\]\]/g;

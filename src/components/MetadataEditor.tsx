@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
-import { Project, Author, Affiliation } from '../types';
-import { generateId } from '../services/storageService';
+import { Building, Check, FileText, Plus, Star, Trash2, User, Users } from 'lucide-react';
 import { Button } from './Button';
-import { User, Users, Building, FileText, Check, Trash2, Plus, Star } from 'lucide-react';
+import { generateId } from '@/services/storageService';
+import { Affiliation, Author, Project } from '@/types';
 
 interface MetadataEditorProps {
   project: Project;

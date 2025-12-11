@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { generateId } from '../services/storageService';
-import { FigureType, GeneratedFigure, Project } from '../types';
+import { Download, Image as ImageIcon, Trash2, Upload, X } from 'lucide-react';
 import { Button } from './Button';
-import { Download, Trash2, Upload, Image as ImageIcon, X } from 'lucide-react';
+import { generateId } from '@/services/storageService';
+import { FigureType, GeneratedFigure, Project } from '@/types';
 
 interface FigureGeneratorProps {
   project: Project;
@@ -290,7 +290,9 @@ export const FigureGenerator: React.FC<FigureGeneratorProps> = ({ project, onUpd
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          ref={(el) => (replaceInputs.current[fig.id] = el)}
+                          ref={(el) => {
+                            replaceInputs.current[fig.id] = el;
+                          }}
                           onChange={(e) => handleReplaceImage(fig.id, e.target.files?.[0])}
                         />
                       </label>

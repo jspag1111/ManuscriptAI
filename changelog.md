@@ -1,3 +1,38 @@
+## 2025-12-10 23:40 EST
+- (Commit: Fix Vercel runtime detection) Added a repository `vercel.json` so deployments explicitly use the Next.js framework with `.next` as the output directory, and reverted the temporary `distDir` override to restore the expected server output; verified with `npm run build` and `npm run test`.
+
+## 2025-12-10 23:15 EST
+- (Commit: Fix Vercel dist directory error) Configured Next.js to emit its build artifacts to a `dist` directory so the existing Vercel project settings detect the output, keeping the standalone backend bundle and frontend assets aligned; verified with `npm run build` and `npm run test`.
+
+## 2025-12-09 23:09 EST
+    15 +- Typed SQLite seed/query results to keep the persisted project data flow aligned between th
+        e backend store and frontend normalization.
+    16 +- Aligned the Vitest/Vite toolchain (move to Vite 5.x, set v8 coverage provider) to resolve
+        plugin type conflicts; regenerated lockfile and typed-routes import in `next-env.d.ts`.
+    17 +- Verified `npm run build` and `npm run test` complete without errors.
+
+## 2025-12-09 22:55 EST
+- (Commit: Fix typed route params for Next.js 16) Updated the projects DELETE API handler to use the Next.js 16 typedRoutes request/context signature and moved `typedRoutes` out of `experimental` in `next.config.mjs` to satisfy Vercel builds.
+
+## 2025-12-08 22:10 EST
+- (Commit: Fix missing Info icon in sidebar) Added the missing `Info` icon import to the Manuscript workspace sidebar to resolve the runtime reference error when opening a project.
+
+## 2025-12-08 22:02 EST
+- (Commit: Migrate to Next.js with Tailwind and shared API) Migrated the app to Next.js 16 with the App Router, Tailwind CSS, and a new `src/app` structure while keeping the manuscript UI intact.
+- Replaced the Express server with Next.js API route handlers backed by the shared SQLite store and normalization helpers so the frontend and backend defaults stay aligned.
+- Added shared project normalization utilities plus a new Vitest suite (including a normalization test) and refreshed the Vitest config for the Next.js setup.
+- Updated tooling and docs (Next/Tailwind configs, ESLint, README) for the new stack and verified `npm test` passes after the migration.
+
+## 2025-12-09 23:09 EST
+- (Commit: Fix build errors and align vitest tooling) Fixed the figure replacement input ref and version snapshot typing so Next.js/TypeScript builds complete successfully.
+- Typed SQLite seed/query results to keep the persisted project data flow aligned between the backend store and frontend normalization.
+- Aligned the Vitest/Vite toolchain (move to Vite 5.x, set v8 coverage provider) to resolve plugin type conflicts; regenerated lockfile and typed-routes import in `next-env.d.ts`.
+- Verified `npm run build` and `npm run test` complete without errors.
+
+## 2025-12-06 17:22 EST
+- (Commit: Add Gemini fallback for drafting and refine) Added a shared Gemini generation helper that automatically falls back to gemini-2.5-flash when the pro model hits quota/permission limits so the Regenerate Draft and refine-in-place tools stop erroring; logged fallback attempts for visibility and kept API prompts unchanged.
+- Verified `npm run test` still passes after the update.
+
 ## 2025-12-02 01:19 EST
 - Simplified diff views to a single unified style without LLM vs user attribution or legends, keeping standard additions/removals highlighting only.
 - Swapped the toolbar placement so “Insert Citation” sits with formatting controls and “Show/Hide Diff” lives on the right side of the editor header.

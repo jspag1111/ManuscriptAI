@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Section, SectionVersion } from '../types';
-import { Button } from './Button';
 import { ArrowLeft, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { AttributedDiffViewer } from './AttributedDiffViewer';
+import { Button } from './Button';
+import { Section, SectionVersion } from '@/types';
 
 interface HistoryViewerProps {
   section: Section;

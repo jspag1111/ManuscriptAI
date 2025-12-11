@@ -1,8 +1,53 @@
 import { GoogleGenAI } from "@google/genai";
-import { Project, Reference, Section } from '../types';
-import { MODEL_TEXT_QUALITY, MODEL_TEXT_FAST, MODEL_IMAGE } from '../constants';
+import { MODEL_IMAGE, MODEL_TEXT_FAST, MODEL_TEXT_QUALITY } from '@/constants';
+import { Project, Reference, Section } from '@/types';
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured. Set NEXT_PUBLIC_GEMINI_API_KEY.');
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+type GenerateContentParams = Parameters<GoogleGenAI['models']['generateContent']>[0];
+type BaseGenerateContentParams = Omit<GenerateContentParams, 'model'>;
+
+const QUALITY_MODEL_SEQUENCE = [MODEL_TEXT_QUALITY, MODEL_TEXT_FAST];
+const FALLBACK_ERROR_STATUSES = new Set(['RESOURCE_EXHAUSTED', 'PERMISSION_DENIED', 'FAILED_PRECONDITION']);
+
+const shouldFallbackToFastModel = (error: unknown) => {
+  const status = typeof (error as any)?.error?.status === 'string'
+    ? (error as any).error.status
+    : (error as any)?.status;
+  if (typeof status === 'string' && FALLBACK_ERROR_STATUSES.has(status)) {
+    return true;
+  }
+  const message = typeof (error as any)?.message === 'string' ? (error as any).message.toLowerCase() : '';
+  return message.includes('quota') || message.includes('model not found') || message.includes('rate limit');
+};
+
+const generateContentWithFallback = async (
+  ai: GoogleGenAI,
+  request: BaseGenerateContentParams,
+  models: string[] = QUALITY_MODEL_SEQUENCE
+) => {
+  let lastError: unknown = null;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    try {
+      return await ai.models.generateContent({ ...request, model });
+    } catch (error) {
+      lastError = error;
+      const isLastModel = i === models.length - 1;
+      if (!shouldFallbackToFastModel(error) || isLastModel) {
+        throw error;
+      }
+      console.warn(`Gemini model ${model} unavailable, attempting fallback model`, error);
+    }
+  }
+  throw lastError;
+};
 
 export const generateSectionDraft = async (
   project: Project,
@@ -59,8 +104,7 @@ export const generateSectionDraft = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_TEXT_QUALITY,
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -95,8 +139,7 @@ export const refineTextSelection = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_TEXT_QUALITY,
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
     });
     return response.text || '';

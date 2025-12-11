@@ -1,4 +1,4 @@
-import { Reference, PaperSearchResult } from '../types';
+import { PaperSearchResult, Reference } from '@/types';
 
 // Helper to parse XML article
 const parsePubMedXml = (article: Element): PaperSearchResult => {

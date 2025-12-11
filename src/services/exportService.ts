@@ -1,6 +1,5 @@
-
-import { Project, Reference } from '../types';
-import { getBibliographyOrder, compileText } from '../utils/citationUtils';
+import { Project, Reference } from '@/types';
+import { compileText, getBibliographyOrder } from '@/utils/citationUtils';
 
 export const exportProjectToWord = (project: Project) => {
   const { title, manuscriptMetadata, sections, references, figures } = project;

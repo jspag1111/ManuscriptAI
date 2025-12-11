@@ -1,5 +1,5 @@
 import { contentToHtml, compileText, formatCitationRanges, getBibliographyOrder, htmlToContent } from '../citationUtils';
-import type { Section } from '../../types';
+import type { Section } from '@/types';
 
 describe('getBibliographyOrder', () => {
   const sections: Section[] = [

@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '../storageService';
-import type { Project } from '../../types';
+import type { Project } from '@/types';
 
 const createFetchResponse = (data: any, ok = true): Response => ({
   ok,
