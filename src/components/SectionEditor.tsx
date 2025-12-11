@@ -98,17 +98,6 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     }
   }, [showWorkingDiff]);
 
-  // Auto-save effect 
-  useEffect(() => {
-    if (isReviewing) return;
-    const timer = setTimeout(() => {
-      if (content !== section.content || notes !== section.userNotes) {
-        handleSave();
-      }
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [content, notes, isReviewing, section.content, section.userNotes, handleSave]);
-
   const handleSave = useCallback(() => {
     const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
     const ensureVersionId = section.currentVersionId || section.id || generateId();
@@ -124,6 +113,17 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       lastLlmContent: section.lastLlmContent ?? null
     });
   }, [content, notes, onUpdateSection, section]);
+
+  // Auto-save effect 
+  useEffect(() => {
+    if (isReviewing) return;
+    const timer = setTimeout(() => {
+      if (content !== section.content || notes !== section.userNotes) {
+        handleSave();
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [content, notes, isReviewing, section.content, section.userNotes, handleSave]);
 
   const handleDraft = async () => {
     setShowWorkingDiff(false);
