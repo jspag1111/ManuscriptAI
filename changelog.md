@@ -1,3 +1,9 @@
+## 2025-12-11
+- Moved project persistence to Turso via `@libsql/client`, keeping the existing schema and async API handlers aligned with Next.js 16 server routes.
+- Added `scripts/migrate-to-turso.mjs` to upsert all projects from `data/projects.sqlite` into the configured Turso database before switching environments.
+- Documented the new Turso env vars and migration flow in `README.md`.
+- Migration script now auto-loads `.env.local` via `@next/env` so locally defined Turso credentials are picked up without manual exporting.
+
 ## 2025-12-10 23:40 EST
 - (Commit: Fix Vercel runtime detection) Added a repository `vercel.json` so deployments explicitly use the Next.js framework with `.next` as the output directory, and reverted the temporary `distDir` override to restore the expected server output; verified with `npm run build` and `npm run test`.
 

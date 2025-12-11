@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const projects = projectStore.getAll();
+    const projects = await projectStore.getAll();
     return NextResponse.json(projects);
   } catch (error) {
     console.error('Failed to fetch projects', error);
@@ -17,7 +17,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const saved = projectStore.save(body);
+    const saved = await projectStore.save(body);
     return NextResponse.json(saved);
   } catch (error) {
     console.error('Failed to save project', error);
