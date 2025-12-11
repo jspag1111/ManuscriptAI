@@ -13,7 +13,7 @@ import { createNewProject, deleteProject, generateId, getProjects, saveProject }
 import { exportProjectToWord } from '@/services/exportService';
 import { AppView, Project, Section, SectionView } from '@/types';
 import { calculateTextStats } from '@/utils/textStats';
-import { ArrowLeft, BookOpen, Check, Download, Edit2, FileText, Image, Info, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Download, Edit2, FileText, Image as ImageIcon, Info, Plus, Save, Trash2, X } from 'lucide-react';
 
 const ManuscriptApp: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -542,7 +542,7 @@ const ManuscriptApp: React.FC = () => {
                       : 'text-slate-600 hover:bg-slate-100'
                     }`}
                  >
-                   <Image size={16} className="mr-2" /> Figures
+                   <ImageIcon size={16} className="mr-2" /> Figures
                  </button>
                  <button
                     onClick={() => setActiveTab('REFERENCES' as any)}

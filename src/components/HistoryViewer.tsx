@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { AttributedDiffViewer } from './AttributedDiffViewer';
 import { Button } from './Button';
@@ -14,6 +14,11 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
   const [showDiff, setShowDiff] = useState(false);
 
+  const handleSelectVersion = (versionId: string) => {
+    setSelectedVersionId(versionId);
+    setShowDiff(false);
+  };
+
   const selectedVersion = section.versions.find(v => v.id === selectedVersionId);
   const selectedIndex = selectedVersion ? section.versions.findIndex(v => v.id === selectedVersionId) : -1;
   const previousContent = selectedVersion
@@ -24,10 +29,6 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
     ? !!section.versions[selectedIndex + 1] || !!section.currentVersionBase
     : section.versions.length > 0 || !!section.currentVersionBase;
   const hasChanges = hasComparison && previousContent !== undefined && previousContent !== null && previousContent !== displayContent;
-
-  useEffect(() => {
-    setShowDiff(false);
-  }, [selectedVersionId]);
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -49,7 +50,7 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
           <div className="p-2 space-y-2">
              <div 
                 className={`p-3 rounded-md cursor-pointer border ${!selectedVersionId ? 'bg-white border-blue-500 shadow-sm' : 'border-transparent hover:bg-slate-100'}`}
-                onClick={() => setSelectedVersionId('')}
+                onClick={() => handleSelectVersion('')}
              >
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-medium text-sm text-slate-800">
@@ -64,7 +65,7 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
               <div 
                 key={v.id}
                 className={`p-3 rounded-md cursor-pointer border ${selectedVersionId === v.id ? 'bg-white border-blue-500 shadow-sm' : 'border-transparent hover:bg-slate-100'}`}
-                onClick={() => setSelectedVersionId(v.id)}
+                onClick={() => handleSelectVersion(v.id)}
               >
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-medium text-sm text-slate-800">

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Eye, EyeOff, FileText, History, Quote, Save, Search, Sparkles, ToggleLeft, ToggleRight, Wand2, X } from 'lucide-react';
 import { AttributedDiffViewer } from './AttributedDiffViewer';
 import { Button } from './Button';
@@ -68,7 +68,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         setShowRefineInput(false);
         editorRef.current?.clearLock();
     }
-  }, [section.id, section.content, section.userNotes]); 
+  }, [section.id, section.content, section.userNotes, isReviewing]); 
 
   useEffect(() => {
     if (section.currentVersionBase === undefined || !section.currentVersionId || !section.currentVersionStartedAt) {
@@ -107,9 +107,9 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       }
     }, 5000);
     return () => clearTimeout(timer);
-  }, [content, notes, isReviewing]);
+  }, [content, notes, isReviewing, section.content, section.userNotes, handleSave]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
     const ensureVersionId = section.currentVersionId || section.id || generateId();
     const ensureStartedAt = section.currentVersionStartedAt || section.lastModified || Date.now();
@@ -123,7 +123,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       currentVersionStartedAt: ensureStartedAt,
       lastLlmContent: section.lastLlmContent ?? null
     });
-  };
+  }, [content, notes, onUpdateSection, section]);
 
   const handleDraft = async () => {
     setShowWorkingDiff(false);
