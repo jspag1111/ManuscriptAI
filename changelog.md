@@ -1,3 +1,7 @@
+## 2025-12-14
+- Improved diff computation to group substitutions into cohesive delete/insert blocks with better whitespace handling so change reviews read closer to Word-style track changes across sections and version history views.
+- Added unit coverage for the diff utility to lock in the new grouped highlighting behavior.
+
 ## 2025-12-13
 - Adjusted the project header to wrap long manuscript titles gracefully on small screens while keeping the card layout intact.
 - Refined the version history view with a responsive layout, wider readable content pane, and softer panel styling for easier review on mobile.
