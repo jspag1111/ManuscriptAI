@@ -1,42 +1,41 @@
-Purpose
+# AGENTS.md
 
+## Purpose
 Defines mandatory rules for automated coding agents working in this repository.
 
-Goals: correctness, security, maintainability, and strict adherence to the Next.js + Vercel + Turso + Clerk stack.
+**Goals:** correctness, security, maintainability, and strict adherence to the **Next.js + Vercel + Turso + Clerk** stack.
 
-⸻
+---
 
-Tech Stack (Authoritative)
-	•	Framework: Next.js
-	•	Deployment: Vercel
-	•	Database: Turso
-	•	Auth: Clerk
+## Tech Stack (Authoritative)
+- **Framework:** Next.js  
+- **Deployment:** Vercel  
+- **Database:** Turso  
+- **Auth:** Clerk  
 
-Agents must consult official docs whenever changes touch these services.
+**Agents must consult official docs whenever changes touch these services.**
 
-⸻
+---
 
-Global Rules
+## Global Rules
+Agents **must**:
+- Follow official docs and best practices for any affected service.
+- Maintain backward compatibility unless explicitly instructed otherwise.
+- Never hard-code secrets (use env vars only).
+- Prioritize security, performance, and idiomatic Next.js patterns.
 
-Agents must:
-	•	Follow official docs and best practices for any affected service.
-	•	Maintain backward compatibility unless explicitly instructed otherwise.
-	•	Never hard-code secrets (use env vars only).
-	•	Prioritize security, performance, and idiomatic Next.js patterns.
+---
 
-⸻
-
-Required Workflow (Every Change)
-	1.	Understand scope and affected stack components.
-	2.	Plan small, focused changes.
-	3.	Consult official docs as needed.
-	4.	Implement following existing patterns and TypeScript standards.
-	5.	Run checks:
-
-npm run lint
-npm run test   # if present
-npm run build
-
+## Required Workflow (Every Change)
+1. **Understand scope** and affected stack components.
+2. **Plan small, focused changes.**
+3. **Consult official docs** as needed.
+4. **Implement** following existing patterns and TypeScript standards.
+5. **Run checks**:
+   ```bash
+   npm run lint
+   npm run test   # if present
+   npm run build
 
 	6.	Update documentation and always update CHANGELOG.md.
 	7.	Commit & push (see Git rules below).
@@ -54,13 +53,12 @@ CHANGELOG.md (Mandatory)
 Git Rules
 	•	Commit only relevant files.
 	•	Commit messages must start with codex/.
-	•	Push to the current branch 
+	•	Push to the current branch.
 	•	No force-pushes or branch changes unless instructed.
 
 Example:
 
 git commit -m "codex/fix-clerk-auth-redirect"
-git push origin [current branch]
 
 
 ⸻
@@ -96,3 +94,4 @@ Do not:
 	•	Change the tech stack.
 	•	Rewrite git history.
 	•	Perform large refactors without explicit approval.
+
