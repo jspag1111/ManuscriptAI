@@ -1,18 +1,14 @@
-## 2025-12-14
+## 2025-12-11
 - Improved diff computation to group substitutions into cohesive delete/insert blocks with better whitespace handling so change reviews read closer to Word-style track changes across sections and version history views.
 - Added unit coverage for the diff utility to lock in the new grouped highlighting behavior.
-
-## 2025-12-13
 - Adjusted the project header to wrap long manuscript titles gracefully on small screens while keeping the card layout intact.
 - Refined the version history view with a responsive layout, wider readable content pane, and softer panel styling for easier review on mobile.
 - Rounded the main section editor card and clipped overflow so the writing surface matches the rest of the workspace styling.
-
-## 2025-12-12
 - Restyled the authentication, landing, and workspace shells with modern gradients, glassy cards, and responsive layouts for desktop, tablet, and mobile.
 - Refreshed the project dashboard and in-app sidebar to feel more polished, with clearer hierarchy, quick actions, and improved section navigation.
 - Added a collapsible Gemini drafter card inside each section so AI generation stays hidden until toggled, while keeping save/version controls always available.
 
-## 2025-12-11
+## 2025-12-10
 - Fixed linting for Next.js 16/ESLint 9 by switching to a flat config, updating the lint script to use `eslint .`, and addressing new rule violations (history viewer state reset, icon alt warning, metadata copy escaping, RichEditor handler order, SectionEditor effect deps) so `npm run lint` runs cleanly again.
 - Added Clerk authentication (App Router) with middleware proxy, layout provider, sign-in/up routes, and UI gating plus Google SSO support guidance; API routes now require the current Clerk user and scope Turso records by user ID.
 - Moved project persistence to Turso via `@libsql/client`, keeping the existing schema and async API handlers aligned with Next.js 16 server routes.
