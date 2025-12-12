@@ -8,6 +8,7 @@ import {
   SignUpButton,
   UserButton,
 } from '@clerk/nextjs';
+import SpeedInsightsComponent from '@/components/SpeedInsights';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </div>
           </header>
           {children}
+          <SpeedInsightsComponent />
         </body>
       </html>
     </ClerkProvider>
