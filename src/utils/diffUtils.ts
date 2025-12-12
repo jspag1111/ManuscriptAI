@@ -5,7 +5,9 @@ export type DiffPart = { type: DiffType; value: string };
 export const computeDiff = (text1: string, text2: string): DiffPart[] => {
   // Split into words but preserve whitespace/punctuation for reconstruction
   // detailed regex to capture words and everything between them
-  const tokenize = (text: string) => text.split(/([^\S\r\n]+|[.,!?;:"'[\]{}()])/).filter(x => x);
+  const tokenize = (text: string) =>
+    // Capture each non-space chunk along with its trailing whitespace so words keep their nearby spacing/punctuation.
+    text.match(/[^\s]+\s*|\s+/g)?.filter(Boolean) ?? [];
   
   const words1 = tokenize(text1);
   const words2 = tokenize(text2);
@@ -31,7 +33,7 @@ export const computeDiff = (text1: string, text2: string): DiffPart[] => {
   let i = m;
   let j = n;
   const diffs: DiffPart[] = [];
-  
+
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && words1[i - 1] === words2[j - 1]) {
       diffs.push({ type: 'equal', value: words1[i - 1] });
@@ -45,6 +47,56 @@ export const computeDiff = (text1: string, text2: string): DiffPart[] => {
       i--;
     }
   }
-  
-  return diffs.reverse();
+
+  const reversed = diffs.reverse();
+
+  // Merge adjacent tokens so replacements show as grouped deletions followed by grouped insertions
+  // (similar to Word track changes) instead of alternating one token at a time.
+  const grouped: DiffPart[] = [];
+  const changeBuffer: DiffPart[] = [];
+
+  const flushChangeBuffer = () => {
+    if (!changeBuffer.length) return;
+
+    const deletes = changeBuffer.filter(part => part.type === 'delete');
+    const inserts = changeBuffer.filter(part => part.type === 'insert');
+
+    if (deletes.length) {
+      grouped.push({
+        type: 'delete',
+        value: deletes.map(d => d.value).join(''),
+      });
+    }
+
+    if (inserts.length) {
+      grouped.push({
+        type: 'insert',
+        value: inserts.map(d => d.value).join(''),
+      });
+    }
+
+    changeBuffer.length = 0;
+  };
+
+  const pushEqual = (value: string) => {
+    const last = grouped[grouped.length - 1];
+    if (last?.type === 'equal') {
+      last.value += value;
+    } else {
+      grouped.push({ type: 'equal', value });
+    }
+  };
+
+  for (const part of reversed) {
+    if (part.type === 'equal') {
+      flushChangeBuffer();
+      pushEqual(part.value);
+    } else {
+      changeBuffer.push(part);
+    }
+  }
+
+  flushChangeBuffer();
+
+  return grouped;
 };
