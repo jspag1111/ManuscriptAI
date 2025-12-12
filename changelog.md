@@ -1,3 +1,8 @@
+## 2025-12-13
+- Adjusted the project header to wrap long manuscript titles gracefully on small screens while keeping the card layout intact.
+- Refined the version history view with a responsive layout, wider readable content pane, and softer panel styling for easier review on mobile.
+- Rounded the main section editor card and clipped overflow so the writing surface matches the rest of the workspace styling.
+
 ## 2025-12-12
 - Restyled the authentication, landing, and workspace shells with modern gradients, glassy cards, and responsive layouts for desktop, tablet, and mobile.
 - Refreshed the project dashboard and in-app sidebar to feel more polished, with clearer hierarchy, quick actions, and improved section navigation.

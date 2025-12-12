@@ -392,7 +392,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       </div>
 
       {/* Right Pane: Editor or Diff Viewer */}
-      <div className="flex-1 min-h-[60vh] flex flex-col relative bg-white/90 border border-slate-200 rounded-2xl shadow-sm">
+      <div className="flex-1 min-h-[60vh] flex flex-col relative bg-white/90 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {isReviewing && pendingContent !== null ? (
             <DiffViewer 
                 original={content} 
