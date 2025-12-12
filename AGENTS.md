@@ -1,9 +1,3 @@
-Here is a much more concise version that preserves all enforceable rules while removing repetition and verbosity:
-
-⸻
-
-AGENTS.md
-
 Purpose
 
 Defines mandatory rules for automated coding agents working in this repository.
