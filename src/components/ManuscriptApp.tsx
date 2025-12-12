@@ -440,7 +440,10 @@ const ManuscriptApp: React.FC = () => {
             </button>
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Project</p>
-              <h1 className="font-semibold text-slate-900 truncate max-w-xl" title={currentProject.title}>
+              <h1
+                className="font-semibold text-slate-900 leading-tight break-words line-clamp-2 max-w-full sm:max-w-2xl"
+                title={currentProject.title}
+              >
                 {currentProject.title}
               </h1>
             </div>
