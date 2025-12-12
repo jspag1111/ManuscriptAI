@@ -105,7 +105,7 @@ For **every change**, the agent must follow this workflow:
 
 ## 5. Maintaining `CHANGELOG.md`
 
-The agent must **always update `CHANGELOG.md`** when making any non-trivial change.
+The agent must **always update `CHANGELOG.md`** when making any non-trivial change. You must include TODAY'S date, which you may need to determine. 
 
 Guidelines:
 
@@ -116,7 +116,7 @@ Guidelines:
 Example entry style (adapt to existing format):
 
 ```markdown
-## Unreleased
+## [Today's Date]
 
 - Added: New Next.js page for X with Clerk-protected route.
 - Fixed: Turso query for Y to avoid N+1 and handle null values.
