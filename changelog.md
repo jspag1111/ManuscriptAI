@@ -1,3 +1,9 @@
+## 2025-12-12
+- Fixed UI layout to reduce side margins and optimize working space.
+- Merged section title and "last saved" info into the section notes card.
+- Added collapsible functionality to the Section Info card, allowing users to hide details while keeping actions visible.
+- Refactored Section Editor to allow full sidebar toggling. Actions (History, New Version, Save) are now accessible via the editor toolbar.
+
 ## 2025-12-11
 - Improved diff computation to group substitutions into cohesive delete/insert blocks with better whitespace handling so change reviews read closer to Word-style track changes across sections and version history views.
 - Added unit coverage for the diff utility to lock in the new grouped highlighting behavior.
@@ -16,10 +22,6 @@
 - Documented the new Turso env vars and migration flow in `README.md`.
 - Migration script now auto-loads `.env.local` via `@next/env` so locally defined Turso credentials are picked up without manual exporting.
 - Scoped seeded projects to a configured Clerk user (`SEED_PROJECT_OWNER_ID`/`DEFAULT_PROJECT_OWNER_ID`) to prevent example data from appearing on new accounts, updated queries to return only owned projects, and added a backfill script to reclaim orphaned seed rows. Documented the env and script usage in `README.md`.
-
-## [Unreleased]
-- Fixed UI layout to reduce side margins and optimize working space.
-- Merged section title and "last saved" info into the section notes card.
 
 ## [2024-03-21]
 

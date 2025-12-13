@@ -43,7 +43,7 @@ Agents **must**:
 
 ## CHANGELOG.md (Mandatory)
 - Update for all non-trivial changes.
-- Include **todayâs date**, time, and commit name.
+- Include **today's date**, time, and commit name. New additions go to the top
 - Use concise bullets (`Added`, `Changed`, `Fixed`, etc.).
 - Must accurately reflect code changes.
 
