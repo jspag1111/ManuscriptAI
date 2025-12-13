@@ -19,17 +19,31 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className="bg-slate-100 min-h-screen text-slate-900">
-          <header className="bg-white border-b border-slate-200">
-            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-slate-800">ManuscriptAI</span>
-                <span className="text-xs text-slate-400 hidden sm:inline">Research drafting workspace</span>
+        <body className="min-h-screen text-slate-900 antialiased">
+          <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 via-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-md">
+                  <span className="text-lg font-bold">M</span>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-slate-900">ManuscriptAI</p>
+                  <p className="text-xs text-slate-500">Smart, elegant manuscript workspace</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-3">
                 <SignedOut>
-                  <SignInButton mode="modal" />
-                  <SignUpButton mode="modal" />
+                  <SignInButton mode="modal">
+                    <button className="px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 hover:text-blue-700 transition-colors">
+                      Sign in
+                    </button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <button className="px-3 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-sky-500 rounded-lg shadow-sm hover:shadow-md transition-transform hover:-translate-y-0.5">
+                      Create account
+                    </button>
+                  </SignUpButton>
                 </SignedOut>
                 <SignedIn>
                   <UserButton afterSignOutUrl="/" />

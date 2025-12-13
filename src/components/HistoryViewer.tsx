@@ -44,12 +44,12 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden gap-4 lg:gap-0">
         {/* Sidebar List */}
-        <div className="w-1/3 min-w-[250px] border-r border-slate-200 overflow-y-auto bg-slate-50">
-          <div className="p-2 space-y-2">
-             <div 
-                className={`p-3 rounded-md cursor-pointer border ${!selectedVersionId ? 'bg-white border-blue-500 shadow-sm' : 'border-transparent hover:bg-slate-100'}`}
+        <div className="w-full lg:w-80 lg:flex-shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 overflow-y-auto bg-slate-50/80 max-h-64 lg:max-h-none lg:overflow-y-auto rounded-xl lg:rounded-none">
+          <div className="p-3 space-y-2">
+             <div
+                className={`p-3 rounded-lg cursor-pointer border transition-colors ${!selectedVersionId ? 'bg-white border-blue-500 shadow-sm ring-1 ring-blue-100' : 'border-transparent hover:bg-slate-100'}`}
                 onClick={() => handleSelectVersion('')}
              >
                 <div className="flex justify-between items-center mb-1">
@@ -62,9 +62,9 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
              </div>
 
             {section.versions.map((v) => (
-              <div 
+              <div
                 key={v.id}
-                className={`p-3 rounded-md cursor-pointer border ${selectedVersionId === v.id ? 'bg-white border-blue-500 shadow-sm' : 'border-transparent hover:bg-slate-100'}`}
+                className={`p-3 rounded-lg cursor-pointer border transition-colors ${selectedVersionId === v.id ? 'bg-white border-blue-500 shadow-sm ring-1 ring-blue-100' : 'border-transparent hover:bg-slate-100'}`}
                 onClick={() => handleSelectVersion(v.id)}
               >
                 <div className="flex justify-between items-center mb-1">
@@ -82,8 +82,8 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
         </div>
 
         {/* Content Preview */}
-        <div className="flex-1 flex flex-col bg-white min-h-0">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+        <div className="flex-1 flex flex-col bg-white min-h-0 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 gap-3">
               <div className="text-sm text-slate-600">
                 {selectedVersion ? 'Compare to previous version' : 'Compare current draft to last saved version'}
               </div>
@@ -108,17 +108,19 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
                   subtitle={hasChanges ? 'Compared to prior version' : 'No changes since prior version'}
                 />
               ) : (
-                <div className="flex-1 p-8 overflow-y-auto font-serif text-slate-800 leading-relaxed whitespace-pre-wrap">
-                  {displayContent}
-                  {!hasComparison && (
-                    <p className="text-sm text-slate-500 mt-4">
-                      No prior version available for comparison yet.
-                    </p>
-                  )}
+                <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+                  <div className="max-w-5xl mx-auto font-serif text-slate-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl shadow-inner p-4 sm:p-6 lg:p-8">
+                    {displayContent}
+                    {!hasComparison && (
+                      <p className="text-sm text-slate-500 mt-4">
+                        No prior version available for comparison yet.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
-            
+
             {selectedVersionId && (
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
                 <Button onClick={() => selectedVersion && onRestore(selectedVersion)}>
