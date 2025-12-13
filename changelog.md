@@ -17,6 +17,12 @@
 - Migration script now auto-loads `.env.local` via `@next/env` so locally defined Turso credentials are picked up without manual exporting.
 - Scoped seeded projects to a configured Clerk user (`SEED_PROJECT_OWNER_ID`/`DEFAULT_PROJECT_OWNER_ID`) to prevent example data from appearing on new accounts, updated queries to return only owned projects, and added a backfill script to reclaim orphaned seed rows. Documented the env and script usage in `README.md`.
 
+## [Unreleased]
+- Fixed UI layout to reduce side margins and optimize working space.
+- Merged section title and "last saved" info into the section notes card.
+
+## [2024-03-21]
+
 ## 2025-12-10 23:40 EST
 - (Commit: Fix Vercel runtime detection) Added a repository `vercel.json` so deployments explicitly use the Next.js framework with `.next` as the output directory, and reverted the temporary `distDir` override to restore the expected server output; verified with `npm run build` and `npm run test`.
 

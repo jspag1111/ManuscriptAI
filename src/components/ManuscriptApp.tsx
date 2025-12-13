@@ -19,7 +19,7 @@ const ManuscriptApp: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [view, setView] = useState<AppView>(AppView.DASHBOARD);
-  
+
   // Project Creation State
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectTitle, setNewProjectTitle] = useState('');
@@ -27,7 +27,7 @@ const ManuscriptApp: React.FC = () => {
   // Project View State
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SectionView>(SectionView.EDITOR);
-  
+
   // Section Management State
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -108,7 +108,7 @@ const ManuscriptApp: React.FC = () => {
 
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
-  
+
   // Load initial data
   useEffect(() => {
     let isMounted = true;
@@ -154,7 +154,7 @@ const ManuscriptApp: React.FC = () => {
       currentVersionStartedAt: Date.now(),
       lastLlmContent: null
     }));
-    
+
     try {
       const saved = await saveProject(newProject);
       setProjects(prev => upsertProject(prev, saved));
@@ -171,7 +171,7 @@ const ManuscriptApp: React.FC = () => {
 
   const handleDeleteProject = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if(confirm("Are you sure? This cannot be undone.")) {
+    if (confirm("Are you sure? This cannot be undone.")) {
       try {
         await deleteProject(id);
         setProjects(prev => prev.filter(p => p.id !== id));
@@ -203,7 +203,7 @@ const ManuscriptApp: React.FC = () => {
 
   const handleUpdateSection = (updatedSection: Section) => {
     if (!currentProject) return;
-    const updatedSections = currentProject.sections.map(s => 
+    const updatedSections = currentProject.sections.map(s =>
       s.id === updatedSection.id ? updatedSection : s
     );
     handleUpdateProject({
@@ -214,15 +214,15 @@ const ManuscriptApp: React.FC = () => {
   };
 
   const handleExport = () => {
-      if (currentProject) {
-          exportProjectToWord(currentProject);
-      }
+    if (currentProject) {
+      exportProjectToWord(currentProject);
+    }
   };
 
   // Section Management Handlers
   const handleAddSection = () => {
     if (!newSectionName.trim()) return;
-    
+
     const newSec: Section = {
       id: generateId(),
       title: newSectionName,
@@ -237,77 +237,77 @@ const ManuscriptApp: React.FC = () => {
       currentVersionStartedAt: Date.now(),
       lastLlmContent: null
     };
-    
+
     if (currentProject) {
-        handleUpdateProject({
-          ...currentProject,
-          sections: [...currentProject.sections, newSec]
-        });
-        setActiveSectionId(newSec.id);
-        setActiveTab(SectionView.EDITOR);
+      handleUpdateProject({
+        ...currentProject,
+        sections: [...currentProject.sections, newSec]
+      });
+      setActiveSectionId(newSec.id);
+      setActiveTab(SectionView.EDITOR);
     }
-    
+
     setIsAddingSection(false);
     setNewSectionName('');
   };
 
   const handleStartEditSection = (e: React.MouseEvent, section: Section) => {
-      e.stopPropagation();
-      setEditingSectionId(section.id);
-      setEditingTitle(section.title);
+    e.stopPropagation();
+    setEditingSectionId(section.id);
+    setEditingTitle(section.title);
   };
 
   const handleSaveEditSection = (e?: React.FormEvent) => {
-      e?.preventDefault();
-      if (editingSectionId && editingTitle.trim() && currentProject) {
-          const updatedSections = currentProject.sections.map(s => 
-              s.id === editingSectionId ? { ...s, title: editingTitle } : s
-          );
-          handleUpdateProject({
-              ...currentProject,
-              sections: updatedSections
-          });
-          setEditingSectionId(null);
-      }
-  };
-
-  const handleDeleteSection = (e: React.MouseEvent, id: string) => {
-      e.stopPropagation();
-      if (!currentProject) return;
-      
-      if (confirm("Delete this section? content will be lost.")) {
-           const updatedSections = currentProject.sections.filter(s => s.id !== id);
-           handleUpdateProject({
-               ...currentProject,
-               sections: updatedSections
-           });
-           
-           if (activeSectionId === id) {
-               setActiveSectionId(updatedSections[0]?.id || null);
-           }
-      }
-  };
-
-  const handleToggleSectionInclusion = (id: string) => {
-      if (!currentProject) return;
-      const target = currentProject.sections.find(s => s.id === id);
-      if (!target) return;
-      const include = target.includeInWordCount !== false;
-      handleUpdateSection({
-          ...target,
-          includeInWordCount: !include
-      });
-  };
-
-  const handleToggleFigureInclusion = (id: string) => {
-      if (!currentProject) return;
-      const updatedFigures = currentProject.figures.map(fig =>
-        fig.id === id ? { ...fig, includeInWordCount: !fig.includeInWordCount } : fig
+    e?.preventDefault();
+    if (editingSectionId && editingTitle.trim() && currentProject) {
+      const updatedSections = currentProject.sections.map(s =>
+        s.id === editingSectionId ? { ...s, title: editingTitle } : s
       );
       handleUpdateProject({
         ...currentProject,
-        figures: updatedFigures
+        sections: updatedSections
       });
+      setEditingSectionId(null);
+    }
+  };
+
+  const handleDeleteSection = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!currentProject) return;
+
+    if (confirm("Delete this section? content will be lost.")) {
+      const updatedSections = currentProject.sections.filter(s => s.id !== id);
+      handleUpdateProject({
+        ...currentProject,
+        sections: updatedSections
+      });
+
+      if (activeSectionId === id) {
+        setActiveSectionId(updatedSections[0]?.id || null);
+      }
+    }
+  };
+
+  const handleToggleSectionInclusion = (id: string) => {
+    if (!currentProject) return;
+    const target = currentProject.sections.find(s => s.id === id);
+    if (!target) return;
+    const include = target.includeInWordCount !== false;
+    handleUpdateSection({
+      ...target,
+      includeInWordCount: !include
+    });
+  };
+
+  const handleToggleFigureInclusion = (id: string) => {
+    if (!currentProject) return;
+    const updatedFigures = currentProject.figures.map(fig =>
+      fig.id === id ? { ...fig, includeInWordCount: !fig.includeInWordCount } : fig
+    );
+    handleUpdateProject({
+      ...currentProject,
+      figures: updatedFigures
+    });
   };
 
 
@@ -390,34 +390,34 @@ const ManuscriptApp: React.FC = () => {
         {/* Create Project Modal */}
         {isCreatingProject && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200 border border-slate-200">
-                 <div className="flex justify-between items-center mb-4">
-                     <div>
-                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New project</p>
-                       <h2 className="text-xl font-bold text-slate-900">Name your manuscript</h2>
-                     </div>
-                     <button onClick={() => setIsCreatingProject(false)} className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100">
-                         <X size={24} />
-                     </button>
-                 </div>
-                 <form onSubmit={handleConfirmCreateProject} className="space-y-4">
-                     <div>
-                         <label className="block text-sm font-medium text-slate-700 mb-2">Project Title</label>
-                         <input
-                             autoFocus
-                             type="text"
-                             className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all"
-                             placeholder="e.g., Quantum Entanglement in Neural Networks"
-                             value={newProjectTitle}
-                             onChange={e => setNewProjectTitle(e.target.value)}
-                         />
-                     </div>
-                     <div className="flex justify-end gap-3">
-                         <Button type="button" variant="secondary" onClick={() => setIsCreatingProject(false)} className="px-4">Cancel</Button>
-                         <Button type="submit" disabled={!newProjectTitle.trim()} className="px-4">Create Project</Button>
-                     </div>
-                 </form>
-             </div>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200 border border-slate-200">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New project</p>
+                  <h2 className="text-xl font-bold text-slate-900">Name your manuscript</h2>
+                </div>
+                <button onClick={() => setIsCreatingProject(false)} className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100">
+                  <X size={24} />
+                </button>
+              </div>
+              <form onSubmit={handleConfirmCreateProject} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Project Title</label>
+                  <input
+                    autoFocus
+                    type="text"
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all"
+                    placeholder="e.g., Quantum Entanglement in Neural Networks"
+                    value={newProjectTitle}
+                    onChange={e => setNewProjectTitle(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button type="button" variant="secondary" onClick={() => setIsCreatingProject(false)} className="px-4">Cancel</Button>
+                  <Button type="submit" disabled={!newProjectTitle.trim()} className="px-4">Create Project</Button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>
@@ -431,7 +431,7 @@ const ManuscriptApp: React.FC = () => {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-transparent">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+      <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
         {/* Top Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 border border-slate-200 rounded-2xl shadow-sm px-4 py-3">
           <div className="flex items-center gap-3">
@@ -460,267 +460,263 @@ const ManuscriptApp: React.FC = () => {
         </header>
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-        {/* Sidebar */}
-        <div className="lg:w-72 w-full bg-white/80 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 space-y-6 max-h-[70vh] lg:max-h-[calc(100vh-240px)] overflow-y-auto">
-            <div className="space-y-3">
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Manuscript Info</h2>
-              <button
-                onClick={() => setActiveTab(SectionView.METADATA)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${
-                  activeTab === SectionView.METADATA
-                    ? 'bg-blue-600 text-white shadow-blue-200'
-                    : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
-                }`}
-              >
-                <Info size={16} className="mr-2" /> Title & Authors
-              </button>
-            </div>
+          {/* Sidebar */}
+          <div className="lg:w-72 w-full bg-white/80 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 space-y-6 max-h-[70vh] lg:max-h-[calc(100vh-240px)] overflow-y-auto">
+              <div className="space-y-3">
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Manuscript Info</h2>
+                <button
+                  onClick={() => setActiveTab(SectionView.METADATA)}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${activeTab === SectionView.METADATA
+                      ? 'bg-blue-600 text-white shadow-blue-200'
+                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                >
+                  <Info size={16} className="mr-2" /> Title & Authors
+                </button>
+              </div>
 
-            <div className="space-y-2">
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sections</h2>
-              <nav className="space-y-1">
-                {currentProject.sections.map(section => (
-                  <div key={section.id} className="group flex items-center gap-1 relative">
-                    {editingSectionId === section.id ? (
-                      <div className="flex items-center flex-1 gap-1 px-2 py-1 bg-white border border-blue-300 rounded-md shadow-sm">
-                        <input
-                          autoFocus
-                          className="flex-1 min-w-0 text-sm outline-none bg-transparent"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveEditSection();
-                            if (e.key === 'Escape') setEditingSectionId(null);
-                          }}
-                        />
-                        <button onClick={handleSaveEditSection} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14} /></button>
-                        <button onClick={() => setEditingSectionId(null)} className="text-red-600 hover:bg-red-50 p-1 rounded"><X size={14} /></button>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            setActiveSectionId(section.id);
-                            setActiveTab(SectionView.EDITOR);
-                          }}
-                          className={`flex-1 text-left px-3 py-2 rounded-xl text-sm font-medium transition-colors truncate pr-16 ${
-                            activeTab === SectionView.EDITOR && activeSectionId === section.id
-                              ? 'bg-blue-50 text-blue-800 border border-blue-100'
-                              : 'text-slate-700 hover:bg-slate-50 border border-transparent'
-                          }`}
-                        >
-                          {section.title}
-                        </button>
-                        <div className={`absolute right-1 flex items-center bg-white/80 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity ${activeSectionId === section.id ? 'opacity-100' : ''}`}>
-                          <button onClick={(e) => handleStartEditSection(e, section)} className="p-1.5 text-slate-400 hover:text-blue-600 rounded" title="Rename">
-                            <Edit2 size={12} />
-                          </button>
-                          <button onClick={(e) => handleDeleteSection(e, section.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="Delete">
-                            <Trash2 size={12} />
-                          </button>
+              <div className="space-y-2">
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sections</h2>
+                <nav className="space-y-1">
+                  {currentProject.sections.map(section => (
+                    <div key={section.id} className="group flex items-center gap-1 relative">
+                      {editingSectionId === section.id ? (
+                        <div className="flex items-center flex-1 gap-1 px-2 py-1 bg-white border border-blue-300 rounded-md shadow-sm">
+                          <input
+                            autoFocus
+                            className="flex-1 min-w-0 text-sm outline-none bg-transparent"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEditSection();
+                              if (e.key === 'Escape') setEditingSectionId(null);
+                            }}
+                          />
+                          <button onClick={handleSaveEditSection} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14} /></button>
+                          <button onClick={() => setEditingSectionId(null)} className="text-red-600 hover:bg-red-50 p-1 rounded"><X size={14} /></button>
                         </div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setActiveSectionId(section.id);
+                              setActiveTab(SectionView.EDITOR);
+                            }}
+                            className={`flex-1 text-left px-3 py-2 rounded-xl text-sm font-medium transition-colors truncate pr-16 ${activeTab === SectionView.EDITOR && activeSectionId === section.id
+                                ? 'bg-blue-50 text-blue-800 border border-blue-100'
+                                : 'text-slate-700 hover:bg-slate-50 border border-transparent'
+                              }`}
+                          >
+                            {section.title}
+                          </button>
+                          <div className={`absolute right-1 flex items-center bg-white/80 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity ${activeSectionId === section.id ? 'opacity-100' : ''}`}>
+                            <button onClick={(e) => handleStartEditSection(e, section)} className="p-1.5 text-slate-400 hover:text-blue-600 rounded" title="Rename">
+                              <Edit2 size={12} />
+                            </button>
+                            <button onClick={(e) => handleDeleteSection(e, section.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="Delete">
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
 
-                {isAddingSection ? (
-                  <div className="flex items-center gap-1 px-2 py-1 mt-2 bg-white border border-blue-300 rounded-md shadow-sm">
-                    <input
-                      autoFocus
-                      placeholder="New Section..."
-                      className="flex-1 min-w-0 text-sm outline-none bg-transparent"
-                      value={newSectionName}
-                      onChange={(e) => setNewSectionName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddSection();
-                        if (e.key === 'Escape') setIsAddingSection(false);
+                  {isAddingSection ? (
+                    <div className="flex items-center gap-1 px-2 py-1 mt-2 bg-white border border-blue-300 rounded-md shadow-sm">
+                      <input
+                        autoFocus
+                        placeholder="New Section..."
+                        className="flex-1 min-w-0 text-sm outline-none bg-transparent"
+                        value={newSectionName}
+                        onChange={(e) => setNewSectionName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddSection();
+                          if (e.key === 'Escape') setIsAddingSection(false);
+                        }}
+                      />
+                      <button onClick={handleAddSection} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14} /></button>
+                      <button onClick={() => setIsAddingSection(false)} className="text-red-600 hover:bg-red-50 p-1 rounded"><X size={14} /></button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsAddingSection(true);
+                        setNewSectionName('');
                       }}
-                    />
-                    <button onClick={handleAddSection} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14} /></button>
-                    <button onClick={() => setIsAddingSection(false)} className="text-red-600 hover:bg-red-50 p-1 rounded"><X size={14} /></button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setIsAddingSection(true);
-                      setNewSectionName('');
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:text-slate-700 flex items-center hover:bg-slate-50 rounded-md transition-colors mt-1"
-                  >
-                    <Plus size={14} className="mr-2" /> Add Section
-                  </button>
-                )}
-              </nav>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 space-y-2">
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tools</h2>
-              <nav className="space-y-1">
-                <button
-                  onClick={() => setActiveTab(SectionView.FIGURES)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
-                    activeTab === SectionView.FIGURES
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <ImageIcon size={16} className="mr-2" /> Figures
-                </button>
-                <button
-                  onClick={() => setActiveTab('REFERENCES' as any)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
-                    (activeTab as any) === 'REFERENCES'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <BookOpen size={16} className="mr-2" /> References
-                </button>
-              </nav>
-            </div>
-
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Project Totals</h3>
-                <span className="text-[10px] text-slate-500">
-                  {projectTotals.includedSections}/{projectTotals.totalSections} sections
-                </span>
-              </div>
-              <dl className="space-y-1 text-xs">
-                <div className="flex items-center justify-between">
-                  <dt className="text-slate-600">Words</dt>
-                  <dd className="font-semibold text-slate-900">{projectTotals.words.toLocaleString()}</dd>
-                </div>
-                {currentProject.figures.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <dt className="text-slate-600">+ Figure/Table Text</dt>
-                    <dd className="font-semibold text-slate-800">{projectTotals.figureWords.toLocaleString()}</dd>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <dt className="text-slate-600">Chars (with spaces)</dt>
-                  <dd className="font-semibold text-slate-900">{projectTotals.charsWithSpaces.toLocaleString()}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-slate-600">Chars (no spaces)</dt>
-                  <dd className="font-semibold text-slate-900">{projectTotals.charsWithoutSpaces.toLocaleString()}</dd>
-                </div>
-              </dl>
-              <div className="pt-2 border-t border-slate-200 space-y-1">
-                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Included Sections</p>
-                <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                  {currentProject.sections.map(section => {
-                    const include = section.includeInWordCount !== false;
-                    return (
-                      <label key={section.id} className="flex items-center gap-2 text-xs text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={include}
-                          onChange={() => handleToggleSectionInclusion(section.id)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="truncate">{section.title}</span>
-                      </label>
-                    );
-                  })}
-                  {currentProject.sections.length === 0 && (
-                    <p className="text-[11px] text-slate-400">No sections available.</p>
+                      className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:text-slate-700 flex items-center hover:bg-slate-50 rounded-md transition-colors mt-1"
+                    >
+                      <Plus size={14} className="mr-2" /> Add Section
+                    </button>
                   )}
-                </div>
+                </nav>
               </div>
-              {currentProject.figures.length > 0 && (
+
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tools</h2>
+                <nav className="space-y-1">
+                  <button
+                    onClick={() => setActiveTab(SectionView.FIGURES)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${activeTab === SectionView.FIGURES
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                  >
+                    <ImageIcon size={16} className="mr-2" /> Figures
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('REFERENCES' as any)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${(activeTab as any) === 'REFERENCES'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                  >
+                    <BookOpen size={16} className="mr-2" /> References
+                  </button>
+                </nav>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Project Totals</h3>
+                  <span className="text-[10px] text-slate-500">
+                    {projectTotals.includedSections}/{projectTotals.totalSections} sections
+                  </span>
+                </div>
+                <dl className="space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-600">Words</dt>
+                    <dd className="font-semibold text-slate-900">{projectTotals.words.toLocaleString()}</dd>
+                  </div>
+                  {currentProject.figures.length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <dt className="text-slate-600">+ Figure/Table Text</dt>
+                      <dd className="font-semibold text-slate-800">{projectTotals.figureWords.toLocaleString()}</dd>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-600">Chars (with spaces)</dt>
+                    <dd className="font-semibold text-slate-900">{projectTotals.charsWithSpaces.toLocaleString()}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-600">Chars (no spaces)</dt>
+                    <dd className="font-semibold text-slate-900">{projectTotals.charsWithoutSpaces.toLocaleString()}</dd>
+                  </div>
+                </dl>
                 <div className="pt-2 border-t border-slate-200 space-y-1">
-                  <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
-                    Figure/Table Captions
-                    <span className="ml-1 font-normal text-slate-400">
-                      ({projectTotals.includedFigures}/{currentProject.figures.length} counted)
-                    </span>
-                  </p>
+                  <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Included Sections</p>
                   <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                    {currentProject.figures.map((figure, index) => {
-                      const label = figure.label || (figure.figureType === 'table'
-                        ? `Table ${index + 1}`
-                        : figure.figureType === 'supplemental'
-                          ? `Supplemental ${index + 1}`
-                          : `Figure ${index + 1}`);
+                    {currentProject.sections.map(section => {
+                      const include = section.includeInWordCount !== false;
                       return (
-                        <label key={figure.id} className="flex items-center gap-2 text-xs text-slate-600">
+                        <label key={section.id} className="flex items-center gap-2 text-xs text-slate-600">
                           <input
                             type="checkbox"
-                            checked={figure.includeInWordCount}
-                            onChange={() => handleToggleFigureInclusion(figure.id)}
+                            checked={include}
+                            onChange={() => handleToggleSectionInclusion(section.id)}
                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="truncate">{label}</span>
+                          <span className="truncate">{section.title}</span>
                         </label>
                       );
                     })}
+                    {currentProject.sections.length === 0 && (
+                      <p className="text-[11px] text-slate-400">No sections available.</p>
+                    )}
                   </div>
                 </div>
-              )}
+                {currentProject.figures.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200 space-y-1">
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+                      Figure/Table Captions
+                      <span className="ml-1 font-normal text-slate-400">
+                        ({projectTotals.includedFigures}/{currentProject.figures.length} counted)
+                      </span>
+                    </p>
+                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                      {currentProject.figures.map((figure, index) => {
+                        const label = figure.label || (figure.figureType === 'table'
+                          ? `Table ${index + 1}`
+                          : figure.figureType === 'supplemental'
+                            ? `Supplemental ${index + 1}`
+                            : `Figure ${index + 1}`);
+                        return (
+                          <label key={figure.id} className="flex items-center gap-2 text-xs text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={figure.includeInWordCount}
+                              onChange={() => handleToggleFigureInclusion(figure.id)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="truncate">{label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 min-h-[70vh] overflow-hidden">
-          {activeTab === SectionView.EDITOR && activeSection && (
-            <SectionEditor 
-              section={activeSection} 
-              project={currentProject}
-              onUpdateSection={handleUpdateSection}
-              onViewHistory={() => setActiveTab(SectionView.VERSIONS)}
-            />
-          )}
+          {/* Main Content Area */}
+          <div className="flex-1 min-h-[70vh] overflow-hidden">
+            {activeTab === SectionView.EDITOR && activeSection && (
+              <SectionEditor
+                section={activeSection}
+                project={currentProject}
+                onUpdateSection={handleUpdateSection}
+                onViewHistory={() => setActiveTab(SectionView.VERSIONS)}
+              />
+            )}
 
-          {activeTab === SectionView.VERSIONS && activeSection && (
-             <HistoryViewer 
-               section={activeSection}
-               onClose={() => setActiveTab(SectionView.EDITOR)}
-               onRestore={(version) => {
-                 handleUpdateSection({
-                   ...activeSection,
-                   content: version.content,
-                   userNotes: version.notes,
-                   lastModified: Date.now(),
+            {activeTab === SectionView.VERSIONS && activeSection && (
+              <HistoryViewer
+                section={activeSection}
+                onClose={() => setActiveTab(SectionView.EDITOR)}
+                onRestore={(version) => {
+                  handleUpdateSection({
+                    ...activeSection,
+                    content: version.content,
+                    userNotes: version.notes,
+                    lastModified: Date.now(),
                     currentVersionBase: version.content,
                     currentVersionStartedAt: Date.now(),
                     currentVersionId: generateId(),
                     lastLlmContent: null,
                     versions: [
-                     {...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`, source: 'USER'},
-                     ...activeSection.versions
-                   ]
-                 });
-                 setActiveTab(SectionView.EDITOR);
-               }}
-             />
-          )}
-
-          {activeTab === SectionView.FIGURES && (
-            <FigureGenerator 
-              project={currentProject} 
-              onUpdateProject={handleUpdateProject} 
-            />
-          )}
-
-          {(activeTab as any) === 'REFERENCES' && (
-            <ReferenceManager 
-              project={currentProject}
-              onUpdateProject={handleUpdateProject}
-            />
-          )}
-
-          {activeTab === SectionView.METADATA && (
-              <MetadataEditor
-                  project={currentProject}
-                  onUpdateProject={handleUpdateProject}
+                      { ...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`, source: 'USER' },
+                      ...activeSection.versions
+                    ]
+                  });
+                  setActiveTab(SectionView.EDITOR);
+                }}
               />
-          )}
+            )}
+
+            {activeTab === SectionView.FIGURES && (
+              <FigureGenerator
+                project={currentProject}
+                onUpdateProject={handleUpdateProject}
+              />
+            )}
+
+            {(activeTab as any) === 'REFERENCES' && (
+              <ReferenceManager
+                project={currentProject}
+                onUpdateProject={handleUpdateProject}
+              />
+            )}
+
+            {activeTab === SectionView.METADATA && (
+              <MetadataEditor
+                project={currentProject}
+                onUpdateProject={handleUpdateProject}
+              />
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </div>
   );
