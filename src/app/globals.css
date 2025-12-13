@@ -23,6 +23,43 @@ body {
   background-attachment: fixed;
 }
 
+.pm-editor .ProseMirror {
+  min-height: 320px;
+  padding: 18px;
+  font-size: 15px;
+  line-height: 1.7;
+  outline: none;
+}
+
+.pm-editor .ProseMirror p { margin: 0; }
+
+.pm-diff-user {
+  background: #ecfdf3;
+  border-bottom: 2px solid #22c55e;
+  border-radius: 4px;
+}
+
+.pm-diff-llm {
+  background: #eef2ff;
+  border-bottom: 2px solid #6366f1;
+  border-radius: 4px;
+}
+
+.pm-comment-marker {
+  background: #fff7ed;
+  border-bottom: 2px solid #f59e0b;
+  border-radius: 4px;
+}
+
+.pm-comment-active {
+  box-shadow: inset 0 0 0 2px #2563eb;
+}
+
+.pm-comment-resolved {
+  opacity: 0.55;
+  border-bottom-color: #34d399;
+}
+
 a {
   color: inherit;
   text-decoration: none;
