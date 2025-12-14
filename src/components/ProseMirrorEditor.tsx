@@ -49,17 +49,22 @@ interface ProseMirrorEditorProps {
 }
 
 const createCitationNodeView = (
-  bibliographyOrder: string[],
-  renderCitations: boolean,
-  references: Reference[]
+  configRef: {
+    current: {
+      bibliographyOrder: string[];
+      renderCitations: boolean;
+      references: Reference[];
+    };
+  }
 ): ((node: any, view: EditorView, getPos: () => number) => NodeView) => {
-  return (node, _view, getPos) => {
+  return (node) => {
     const dom = document.createElement('span');
     dom.className = 'pm-citation';
     dom.contentEditable = 'false';
     dom.dataset.ids = Array.isArray(node.attrs.ids) ? node.attrs.ids.join(',') : '';
 
     const resolveLabel = () => {
+      const bibliographyOrder = configRef.current.bibliographyOrder;
       const ids = Array.isArray(node.attrs.ids) ? (node.attrs.ids as string[]) : [];
       const numbers = ids.map((id) => bibliographyOrder.indexOf(id) + 1).filter((n) => n > 0);
       const unique = Array.from(new Set(numbers));
@@ -67,6 +72,7 @@ const createCitationNodeView = (
     };
 
     const render = () => {
+      const { renderCitations, references } = configRef.current;
       dom.innerHTML = '';
       const content = document.createElement('span');
       if (renderCitations) {
@@ -98,15 +104,6 @@ const createCitationNodeView = (
         return true;
       },
       ignoreMutation() {
-        return true;
-      },
-      stopEvent(event) {
-        if (!renderCitations) return true;
-        if (event.type !== 'click') return false;
-        const ids = Array.isArray(node.attrs.ids) ? (node.attrs.ids as string[]) : [];
-        if (ids.length === 0) return true;
-        // For now, treat citation as atomic; removal is via backspace/delete.
-        // Keeping stopEvent true prevents ProseMirror from trying to place a cursor inside.
         return true;
       },
     };
@@ -150,6 +147,11 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
     const isInternalUpdate = useRef(false);
     const eventsRef = useRef<SectionChangeEvent[]>(trackChanges?.events ?? []);
     const initialTrackChangesRef = useRef(trackChanges);
+    const citationConfigRef = useRef({
+      bibliographyOrder,
+      renderCitations,
+      references,
+    });
     const callbacksRef = useRef({
       content,
       onChange,
@@ -189,12 +191,15 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
       ];
     }, [placeholder]);
 
-    const nodeViews = useMemo(
-      () => ({
-        citation: createCitationNodeView(bibliographyOrder, renderCitations, references),
-      }),
-      [bibliographyOrder, renderCitations, references]
-    );
+    const nodeViews = useMemo(() => {
+      // Force a redraw when citation-rendering inputs change (labels/titles + raw/formatted toggle).
+      void bibliographyOrder;
+      void renderCitations;
+      void references;
+      return {
+        citation: createCitationNodeView(citationConfigRef),
+      };
+    }, [bibliographyOrder, renderCitations, references]);
 
     const emitSelection = (state: EditorState) => {
       const handler = callbacksRef.current.onSelect;
@@ -279,6 +284,10 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
     useEffect(() => {
       callbacksRef.current = { content, onChange, onSelect, onMouseUp, trackChanges };
     }, [content, onChange, onMouseUp, onSelect, trackChanges]);
+
+    useEffect(() => {
+      citationConfigRef.current = { bibliographyOrder, renderCitations, references };
+    }, [bibliographyOrder, renderCitations, references]);
 
     useEffect(() => {
       eventsRef.current = trackChanges?.events ?? [];
@@ -378,9 +387,49 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           if (!view || readOnly) return;
           const safeIds = Array.isArray(ids) ? ids.map((id) => String(id)).filter(Boolean) : [];
           if (safeIds.length === 0) return;
+          const { state } = view;
+          const { from, to, empty, $from } = state.selection;
+
+          const mergeCitationNode = (existingNode: any, replaceFrom: number, replaceTo: number) => {
+            const existingIds = Array.isArray(existingNode?.attrs?.ids)
+              ? (existingNode.attrs.ids as string[]).map((id) => String(id)).filter(Boolean)
+              : [];
+            const merged = Array.from(new Set([...existingIds, ...safeIds]));
+            return manuscriptSchema.nodes.citation.create({ ids: merged });
+          };
+
+          let tr = state.tr;
+
+          // If inserting next to an existing citation, merge into it to keep
+          // the inline rendering compact (e.g. [1-3] instead of [1][2][3]).
+          if (empty) {
+            const before = $from.nodeBefore;
+            if (before?.type?.name === 'citation') {
+              const replaceFrom = from - before.nodeSize;
+              const replaceTo = from;
+              const mergedNode = mergeCitationNode(before, replaceFrom, replaceTo);
+              tr = tr.replaceWith(replaceFrom, replaceTo, mergedNode);
+              view.focus();
+              view.dispatch(tr);
+              return;
+            }
+
+            const after = $from.nodeAfter;
+            if (after?.type?.name === 'citation') {
+              const replaceFrom = from;
+              const replaceTo = from + after.nodeSize;
+              const mergedNode = mergeCitationNode(after, replaceFrom, replaceTo);
+              tr = tr.replaceWith(replaceFrom, replaceTo, mergedNode);
+              view.focus();
+              view.dispatch(tr);
+              return;
+            }
+          }
+
           const node = manuscriptSchema.nodes.citation.create({ ids: safeIds });
+          tr = tr.replaceWith(from, to, node);
           view.focus();
-          view.dispatch(view.state.tr.replaceSelectionWith(node));
+          view.dispatch(tr);
         },
         lockSelection: () => {
           const view = viewRef.current;

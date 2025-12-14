@@ -34,6 +34,9 @@ export interface SectionVersion {
   notes: string; // The prompts/notes used to generate this
   commitMessage?: string;
   source?: ChangeSource;
+  baseContent?: string;
+  changeEvents?: SectionChangeEvent[];
+  versionStartedAt?: number;
 }
 
 export interface Section {

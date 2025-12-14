@@ -1,5 +1,6 @@
 ## 2025-12-14 01:01 EST
 - (Commit: codex/prosemirror-track-changes) Added a ProseMirror section editor with persisted edit-attribution (Clerk user + LLM model) plus a highlight toggle + change panel.
+- Added ProseMirror-native in-text citation rendering (atomic citation nodes with formatted numbering, raw marker display, and clipboard-safe serialization).
 - Changed AI draft/refine review to a ProseMirror-based overlay that previews and applies edits as tracked changes (replacing the legacy diff viewer).
 - Added a local DB toggle (`MANUSCRIPTAI_DB_TARGET=local`) to test against `data/projects.sqlite` while keeping Turso configuration intact.
 

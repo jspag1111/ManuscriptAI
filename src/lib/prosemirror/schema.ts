@@ -19,7 +19,7 @@ export const manuscriptSchema = new Schema({
           class: 'pm-citation',
           contenteditable: 'false',
         },
-        '[citation]',
+        ids.map((id) => `[[ref:${id}]]`).join(' '),
       ];
     },
     parseDOM: [
@@ -39,4 +39,3 @@ export const manuscriptSchema = new Schema({
   }),
   marks: basicSchema.spec.marks,
 });
-
