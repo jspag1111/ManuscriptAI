@@ -4,11 +4,12 @@
 
 # ManuscriptAI (Next.js)
 
-Next.js 16 app for drafting and managing research manuscripts with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. A Turso (libSQL) store keeps the UI and API in sync, and the project is wired for modern managed backends (Clerk coming soon) via environment-driven API endpoints.
+Next.js 16 app for drafting and managing research manuscripts with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
 
 ## Tech Stack
 - Next.js App Router + React 19, Tailwind CSS for styling
-- Turso (libSQL via `@libsql/client`) with server route handlers at `/api/projects`
+- ProseMirror editor for section drafting + tracked edit highlights
+- Turso (libSQL via `@libsql/client`) with server route handlers at `/api/projects` (or local SQLite for development)
 - Google Gemini client utilities for drafting, selection refinement, and search assistance
 - Testing: Vitest + Testing Library (jsdom)
 
@@ -18,12 +19,15 @@ Next.js 16 app for drafting and managing research manuscripts with AI-assisted t
    npm install
    ```
 2. **Configure environment**
-   - `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for the Turso database (required for dev + Vercel).
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` for Clerk authentication (store only in `.env.local`/Vercel env vars).
-- `NEXT_PUBLIC_GEMINI_API_KEY` for Gemini-powered features.
-- Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
-- To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
-- Optional: `SEED_PROJECT_OWNER_ID` (or `DEFAULT_PROJECT_OWNER_ID`) to claim seeded example projects for a specific Clerk user; set this to your own user id (e.g., `user_...`) to keep seed data private.
+   - **Database (choose one):**
+     - **Turso (recommended for production):** set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
+     - **Local SQLite (recommended for dev/testing):** set `MANUSCRIPTAI_DB_TARGET=local` (defaults to `data/projects.sqlite`), optionally override with `MANUSCRIPTAI_LOCAL_DB_PATH`.
+       - Note: if `TURSO_DATABASE_URL` is not set, the app automatically falls back to local `data/projects.sqlite`.
+   - **Auth (Clerk):** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` (store only in `.env.local`/Vercel env vars).
+   - **Gemini:** `NEXT_PUBLIC_GEMINI_API_KEY` for AI drafting/refinement.
+   - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
+   - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
+   - Optional: `SEED_PROJECT_OWNER_ID` (or `DEFAULT_PROJECT_OWNER_ID`) to claim seeded example projects for a specific Clerk user; set this to your own user id (e.g., `user_...`) to keep seed data private.
 3. **Run the app**
    ```bash
    npm run dev
@@ -54,6 +58,6 @@ Replace `user_abc123` with the Clerk user id of the account that should keep the
 
 ## Notes
 - The client uses `/api/projects` by default; override with `NEXT_PUBLIC_API_BASE` to point at hosted APIs (Turso, Supabase functions, Clerk-protected endpoints, etc.).
-- DOCX export and figure upload are purely client-side; data persistence is handled through the SQLite-backed API.
-- The database is stored under `data/` so it can be mounted or swapped out when deploying.
+- DOCX export and figure upload are purely client-side; data persistence is handled through the `/api/projects` route handlers (Turso or local SQLite).
+- The local database is stored under `data/` so it can be mounted or swapped out during development.
 - Authentication is handled by Clerk (App Router). Sign-in and sign-up are available at `/sign-in` and `/sign-up`, with modal triggers in the header. All API routes enforce the signed-in user and scope data to the current Clerk user ID.

@@ -63,6 +63,7 @@ const normalizeSection = (section: Partial<Section>, fallbackTime: number): Sect
     currentVersionBase: section.currentVersionBase !== undefined ? section.currentVersionBase : section.content || '',
     currentVersionStartedAt: section.currentVersionStartedAt || sectionModified,
     lastLlmContent: section.lastLlmContent ?? null,
+    changeEvents: Array.isArray((section as any).changeEvents) ? ((section as any).changeEvents as any) : [],
   };
 
   return withDefaults;

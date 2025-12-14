@@ -152,7 +152,8 @@ const ManuscriptApp: React.FC = () => {
       currentVersionId: generateId(),
       currentVersionBase: '',
       currentVersionStartedAt: Date.now(),
-      lastLlmContent: null
+      lastLlmContent: null,
+      changeEvents: [],
     }));
 
     try {
@@ -685,6 +686,7 @@ const ManuscriptApp: React.FC = () => {
                     currentVersionStartedAt: Date.now(),
                     currentVersionId: generateId(),
                     lastLlmContent: null,
+                    changeEvents: [],
                     versions: [
                       { ...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`, source: 'USER' },
                       ...activeSection.versions

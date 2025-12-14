@@ -8,6 +8,11 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'projects.sqlite');
 const TURSO_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+const DB_TARGET = (process.env.MANUSCRIPTAI_DB_TARGET || '').toLowerCase();
+const LOCAL_DB_PATH = process.env.MANUSCRIPTAI_LOCAL_DB_PATH
+  ? path.resolve(process.cwd(), process.env.MANUSCRIPTAI_LOCAL_DB_PATH)
+  : DB_PATH;
+const LOCAL_DB_URL = `file:${LOCAL_DB_PATH}`;
 const SEED_PROJECT_OWNER_ID = process.env.SEED_PROJECT_OWNER_ID || process.env.DEFAULT_PROJECT_OWNER_ID || null;
 
 let clientPromise: Promise<Client> | null = null;
@@ -116,14 +121,24 @@ const seedDatabase = async (client: Client) => {
 
 const getClient = async (): Promise<Client> => {
   if (!clientPromise) {
-    if (!TURSO_URL) {
-      throw new Error('TURSO_DATABASE_URL is not set; please configure your Turso database URL.');
+    const useLocal = DB_TARGET === 'local' || DB_TARGET === 'sqlite' || DB_TARGET === 'file' || (!DB_TARGET && !TURSO_URL);
+    const url = useLocal ? LOCAL_DB_URL : TURSO_URL;
+    const authToken = useLocal ? undefined : TURSO_AUTH_TOKEN;
+
+    if (!url) {
+      throw new Error(
+        'Database is not configured. Set TURSO_DATABASE_URL (and TURSO_AUTH_TOKEN) for Turso, or set MANUSCRIPTAI_DB_TARGET=local to use data/projects.sqlite.'
+      );
+    }
+
+    if (useLocal) {
+      fs.mkdirSync(path.dirname(LOCAL_DB_PATH), { recursive: true });
     }
 
     clientPromise = (async () => {
       const client = createClient({
-        url: TURSO_URL,
-        authToken: TURSO_AUTH_TOKEN,
+        url,
+        authToken,
       });
       await ensureSchema(client);
       await seedDatabase(client);
@@ -238,6 +253,8 @@ export const projectStore = {
   getAll: getAllProjects,
   save: saveProjectRecord,
   delete: deleteProjectRecord,
-  dbUrl: TURSO_URL ?? 'unset',
-  dbPath: DB_PATH,
+  dbUrl: (DB_TARGET === 'local' || DB_TARGET === 'sqlite' || DB_TARGET === 'file' || (!DB_TARGET && !TURSO_URL))
+    ? LOCAL_DB_URL
+    : (TURSO_URL ?? 'unset'),
+  dbPath: LOCAL_DB_PATH,
 };

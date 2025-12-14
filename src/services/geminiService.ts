@@ -36,7 +36,8 @@ const generateContentWithFallback = async (
   for (let i = 0; i < models.length; i++) {
     const model = models[i];
     try {
-      return await ai.models.generateContent({ ...request, model });
+      const response = await ai.models.generateContent({ ...request, model });
+      return { response, model };
     } catch (error) {
       lastError = error;
       const isLastModel = i === models.length - 1;
@@ -53,7 +54,7 @@ export const generateSectionDraft = async (
   project: Project,
   section: Section,
   instructions: string
-): Promise<string> => {
+): Promise<{ text: string; model: string }> => {
   const ai = getAI();
   
   const useReferences = section.useReferences !== false; // Default to true if undefined
@@ -104,7 +105,7 @@ export const generateSectionDraft = async (
   `;
 
   try {
-    const response = await generateContentWithFallback(ai, {
+    const { response, model } = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -112,7 +113,7 @@ export const generateSectionDraft = async (
         maxOutputTokens: 8192,
       },
     });
-    return response.text || '';
+    return { text: response.text || '', model };
   } catch (error) {
     console.error("Gemini Draft Error:", error);
     throw error;
@@ -123,7 +124,7 @@ export const refineTextSelection = async (
   selection: string,
   instruction: string,
   fullContext: string
-): Promise<string> => {
+): Promise<{ text: string; model: string }> => {
   const ai = getAI();
   
   const prompt = `
@@ -139,10 +140,10 @@ export const refineTextSelection = async (
   `;
 
   try {
-    const response = await generateContentWithFallback(ai, {
+    const { response, model } = await generateContentWithFallback(ai, {
       contents: prompt,
     });
-    return response.text || '';
+    return { text: response.text || '', model };
   } catch (error) {
     console.error("Gemini Refine Error:", error);
     throw error;

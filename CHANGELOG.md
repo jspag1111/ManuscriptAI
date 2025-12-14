@@ -1,3 +1,8 @@
+## 2025-12-14 01:01 EST
+- (Commit: codex/prosemirror-track-changes) Added a ProseMirror section editor with persisted edit-attribution (Clerk user + LLM model) plus a highlight toggle + change panel.
+- Changed AI draft/refine review to a ProseMirror-based overlay that previews and applies edits as tracked changes (replacing the legacy diff viewer).
+- Added a local DB toggle (`MANUSCRIPTAI_DB_TARGET=local`) to test against `data/projects.sqlite` while keeping Turso configuration intact.
+
 ## 2025-12-12
 - Fixed UI layout to reduce side margins and optimize working space.
 - Merged section title and "last saved" info into the section notes card.

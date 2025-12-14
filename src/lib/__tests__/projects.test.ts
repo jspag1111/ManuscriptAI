@@ -37,6 +37,7 @@ describe('normalizeProject', () => {
     expect(normalized.sections[0].includeInWordCount).toBe(true);
     expect(normalized.sections[0].currentVersionId).toBeTruthy();
     expect(normalized.sections[0].currentVersionBase).toBe('Hello');
+    expect(normalized.sections[0].changeEvents).toEqual([]);
     expect(normalized.figures[0].label).toBe('Table 1');
     expect(normalized.figures[0].includeInWordCount).toBe(false);
   });

@@ -15,6 +15,18 @@ export interface Reference {
 
 export type ChangeSource = 'LLM' | 'USER';
 
+export type ChangeActor =
+  | { type: 'USER'; userId: string; name?: string | null }
+  | { type: 'LLM'; model: string };
+
+export interface SectionChangeEvent {
+  id: string;
+  timestamp: number;
+  actor: ChangeActor;
+  selection?: { from: number; to: number } | null;
+  steps: unknown[];
+}
+
 export interface SectionVersion {
   id: string;
   timestamp: number;
@@ -37,6 +49,7 @@ export interface Section {
   currentVersionBase?: string;
   currentVersionStartedAt?: number;
   lastLlmContent?: string | null;
+  changeEvents?: SectionChangeEvent[];
 }
 
 export interface ProjectSettings {

@@ -1,0 +1,67 @@
+import { EditorState } from 'prosemirror-state';
+import { manuscriptSchema } from '@/lib/prosemirror/schema';
+import { contentToProseMirrorDoc, proseMirrorDocToContent } from '@/lib/prosemirror/serialization';
+import { generateId } from '@/lib/projects';
+import type { ChangeActor, SectionChangeEvent } from '@/types';
+
+export const buildReplaceAllAiReview = ({
+  baseContent,
+  nextContent,
+  actor,
+}: {
+  baseContent: string;
+  nextContent: string;
+  actor: ChangeActor;
+}): { previewContent: string; event: SectionChangeEvent } => {
+  const baseDoc = contentToProseMirrorDoc(manuscriptSchema, baseContent ?? '');
+  const nextDoc = contentToProseMirrorDoc(manuscriptSchema, nextContent ?? '');
+  const state = EditorState.create({ schema: manuscriptSchema, doc: baseDoc });
+  const tr = state.tr.replaceWith(0, state.doc.content.size, nextDoc.content);
+  const previewContent = proseMirrorDocToContent(tr.doc);
+  const now = Date.now();
+
+  return {
+    previewContent,
+    event: {
+      id: generateId(),
+      timestamp: now,
+      actor,
+      selection: { from: 0, to: state.doc.content.size },
+      steps: tr.steps.map((step) => step.toJSON()),
+    },
+  };
+};
+
+export const buildReplaceSelectionAiReview = ({
+  baseContent,
+  from,
+  to,
+  replacementText,
+  actor,
+}: {
+  baseContent: string;
+  from: number;
+  to: number;
+  replacementText: string;
+  actor: ChangeActor;
+}): { previewContent: string; event: SectionChangeEvent } => {
+  const baseDoc = contentToProseMirrorDoc(manuscriptSchema, baseContent ?? '');
+  const state = EditorState.create({ schema: manuscriptSchema, doc: baseDoc });
+  const safeFrom = Math.max(0, Math.min(from, state.doc.content.size));
+  const safeTo = Math.max(0, Math.min(to, state.doc.content.size));
+  const tr = state.tr.insertText(replacementText ?? '', safeFrom, safeTo);
+  const previewContent = proseMirrorDocToContent(tr.doc);
+  const now = Date.now();
+
+  return {
+    previewContent,
+    event: {
+      id: generateId(),
+      timestamp: now,
+      actor,
+      selection: { from: safeFrom, to: safeTo },
+      steps: tr.steps.map((step) => step.toJSON()),
+    },
+  };
+};
+

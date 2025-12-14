@@ -27,3 +27,25 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+.ProseMirror {
+  position: relative;
+}
+
+.ProseMirror:focus {
+  outline: none;
+}
+
+.pm-placeholder {
+  pointer-events: none;
+  color: rgb(148 163 184);
+}
+
+.pm-selection-lock {
+  background: rgba(59, 130, 246, 0.14);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.5);
+}
+
+.pm-change {
+  border-radius: 4px;
+}

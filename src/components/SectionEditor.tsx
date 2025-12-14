@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, Eye, EyeOff, FileText, History, PanelLeft, Quote, Save, Search, Sparkles, ToggleLeft, ToggleRight, Wand2, X } from 'lucide-react';
-import { AttributedDiffViewer } from './AttributedDiffViewer';
+import { useUser } from '@clerk/nextjs';
+import { AiReviewOverlay } from './AiReviewOverlay';
+import { ChangePanel } from './ChangePanel';
 import { Button } from './Button';
-import { DiffViewer } from './DiffViewer';
-import { RichEditor, RichEditorHandle } from './RichEditor';
+import { ProseMirrorEditor, ProseMirrorEditorHandle } from './ProseMirrorEditor';
 import { generateSectionDraft, refineTextSelection } from '@/services/geminiService';
 import { generateId } from '@/services/storageService';
-import { Project, Section, SectionVersion } from '@/types';
+import { buildReplaceAllAiReview, buildReplaceSelectionAiReview } from '@/lib/prosemirror/aiReview';
+import { ChangeActor, Project, Section, SectionChangeEvent, SectionVersion } from '@/types';
 import { getBibliographyOrder } from '@/utils/citationUtils';
 import { calculateTextStats } from '@/utils/textStats';
 
@@ -30,15 +32,16 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const [refinePrompt, setRefinePrompt] = useState('');
 
   // Selection state for AI refine
-  const [selectionData, setSelectionData] = useState<{ range: any, text: string } | null>(null);
+  const [selectionData, setSelectionData] = useState<{ range: { start: number; end: number } | null; text: string } | null>(null);
 
   const [showCitationModal, setShowCitationModal] = useState(false);
   const [citationSearch, setCitationSearch] = useState('');
 
-  // Review Mode State
-  const [isReviewing, setIsReviewing] = useState(false);
-  const [pendingContent, setPendingContent] = useState<string | null>(null);
-  const [reviewSource, setReviewSource] = useState<'Draft' | 'Refinement' | null>(null);
+  type AiReviewState =
+    | { kind: 'Draft'; baseContent: string; actor: ChangeActor; event: SectionChangeEvent; previewContent: string }
+    | { kind: 'Refinement'; baseContent: string; actor: ChangeActor; event: SectionChangeEvent; previewContent: string; replacementText: string };
+  const [aiReview, setAiReview] = useState<AiReviewState | null>(null);
+  const isReviewing = aiReview !== null;
 
   // Popup state for in-text edits
   const [popupPosition, setPopupPosition] = useState<{ x: number, y: number } | null>(null);
@@ -46,31 +49,32 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
   // Display toggle for citations
   const [showCitations, setShowCitations] = useState(false);
-  const [showWorkingDiff, setShowWorkingDiff] = useState(false);
+  const [showHighlights, setShowHighlights] = useState(false);
   const [showGenerator, setShowGenerator] = useState(() => (section.content ?? '').trim().length === 0);
   const [showDetails, setShowDetails] = useState(true);
 
-  const editorRef = useRef<RichEditorHandle>(null);
+  const editorRef = useRef<ProseMirrorEditorHandle>(null);
+  const { user } = useUser();
+  const [changeEvents, setChangeEvents] = useState(section.changeEvents ?? []);
 
   // Computed bibliography order for formatting citations [1-3]
-  // Memoized to prevent RichEditor re-renders that lose selection
+  // Memoized to avoid churn in the editor nodeViews
   const bibliographyOrder = useMemo(() => getBibliographyOrder(project.sections), [project.sections]);
   const contentStats = useMemo(() => calculateTextStats(content), [content]);
   const workingBase = section.currentVersionBase !== undefined ? section.currentVersionBase : section.content;
-  const versionStartedAt = section.currentVersionStartedAt || section.lastModified;
-  const workingDiffSubtitle = versionStartedAt ? `Since ${new Date(versionStartedAt).toLocaleString()}` : undefined;
 
   // Sync internal state if section changes prop
   useEffect(() => {
     if (!isReviewing) {
       setContent(section.content);
       setNotes(section.userNotes);
+      setChangeEvents(section.changeEvents ?? []);
       setSelectionData(null);
       setPopupPosition(null);
       setShowRefineInput(false);
       editorRef.current?.clearLock();
     }
-  }, [section.id, section.content, section.userNotes, isReviewing]);
+  }, [section.changeEvents, section.content, section.id, section.userNotes, isReviewing]);
 
   useEffect(() => {
     if (section.currentVersionBase === undefined || !section.currentVersionId || !section.currentVersionStartedAt) {
@@ -86,22 +90,20 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
   // Reset review state when switching sections
   useEffect(() => {
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
-    setShowWorkingDiff(false);
+    setAiReview(null);
+    setShowHighlights(false);
     setShowGenerator((section.content ?? '').trim().length === 0);
     // Intentionally only reset when switching sections
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section.id]);
 
   useEffect(() => {
-    if (showWorkingDiff) {
-      setPopupPosition(null);
-      setShowRefineInput(false);
-      editorRef.current?.clearLock();
-    }
-  }, [showWorkingDiff]);
+    if (!showHighlights) return;
+    // When highlights are on, keep the UI focused on reviewability.
+    setPopupPosition(null);
+    setShowRefineInput(false);
+    editorRef.current?.clearLock();
+  }, [showHighlights]);
 
   const handleSave = useCallback(() => {
     const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
@@ -111,13 +113,14 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       ...section,
       content,
       userNotes: notes,
+      changeEvents,
       lastModified: Date.now(),
       currentVersionBase: ensureVersionBase,
       currentVersionId: ensureVersionId,
       currentVersionStartedAt: ensureStartedAt,
       lastLlmContent: section.lastLlmContent ?? null
     });
-  }, [content, notes, onUpdateSection, section]);
+  }, [changeEvents, content, notes, onUpdateSection, section]);
 
   // Auto-save effect 
   useEffect(() => {
@@ -131,14 +134,21 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   }, [content, notes, isReviewing, section.content, section.userNotes, handleSave]);
 
   const handleDraft = async () => {
-    setShowWorkingDiff(false);
     setIsDrafting(true);
     handleSave();
     try {
-      const draft = await generateSectionDraft(project, { ...section, userNotes: notes, content }, "Draft or improve the section based on the notes.");
-      setPendingContent(draft);
-      setReviewSource('Draft');
-      setIsReviewing(true);
+      const { text, model } = await generateSectionDraft(
+        project,
+        { ...section, userNotes: notes, content },
+        'Draft or improve the section based on the notes.'
+      );
+      const actor: ChangeActor = { type: 'LLM', model };
+      const { previewContent, event } = buildReplaceAllAiReview({
+        baseContent: content,
+        nextContent: text,
+        actor,
+      });
+      setAiReview({ kind: 'Draft', baseContent: content, actor, event, previewContent });
     } catch (e) {
       alert("Failed to draft content.");
     } finally {
@@ -147,7 +157,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   };
 
   const handleAcceptChange = () => {
-    if (pendingContent === null) return;
+    if (!aiReview) return;
 
     const newVersions = [...section.versions];
     if (content.trim()) {
@@ -156,38 +166,43 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         timestamp: Date.now(),
         content: content,
         notes: notes,
-        commitMessage: `Auto-save before AI ${reviewSource}`,
+        commitMessage: `Auto-save before AI ${aiReview.kind}`,
         source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
       });
     }
 
-    const newContent = pendingContent;
+    const nextContent = aiReview.previewContent;
+    if (aiReview.kind === 'Draft') {
+      editorRef.current?.applyContentReplacement(nextContent, aiReview.actor);
+    } else {
+      editorRef.current?.applyLockedSelectionReplacement(aiReview.replacementText, aiReview.actor);
+    }
 
-    setContent(newContent);
     onUpdateSection({
       ...section,
-      content: newContent,
+      content: nextContent,
       versions: newVersions,
       lastModified: Date.now(),
       currentVersionBase: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
       currentVersionId: section.currentVersionId || section.id || generateId(),
       currentVersionStartedAt: section.currentVersionStartedAt || Date.now(),
-      lastLlmContent: newContent
+      lastLlmContent: nextContent,
+      changeEvents,
     });
 
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
+    setAiReview(null);
+    setRefinePrompt('');
+    setSelectionData(null);
+    setPopupPosition(null);
+    setShowRefineInput(false);
   };
 
   const handleRejectChange = () => {
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
+    setAiReview(null);
     editorRef.current?.clearLock();
   };
 
-  const handleSelect = (range: any, text: string) => {
+  const handleSelect = (range: { start: number; end: number } | null, text: string) => {
     // If showing input, ignore selection updates (input field is focused)
     if (showRefineInput) return;
 
@@ -215,10 +230,8 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     }
   };
 
-  const insertText = (text: string) => {
-    if (editorRef.current) {
-      editorRef.current.insertAtCursor(text);
-    }
+  const insertCitation = (id: string) => {
+    editorRef.current?.insertCitation([id]);
   };
 
   const handleStartRefine = () => {
@@ -244,20 +257,29 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     if (!selectionData || !refinePrompt) return;
     setIsRefining(true);
     try {
-      const refined = await refineTextSelection(selectionData.text, refinePrompt, content);
-
-      // Use RichEditor to replace the locked span and get full new content
-      let newContent = content;
-      if (editorRef.current) {
-        newContent = editorRef.current.replaceLockedSelection(refined);
-      } else {
-        // Fallback
-        newContent = content.replace(selectionData.text, refined);
+      const { text, model } = await refineTextSelection(selectionData.text, refinePrompt, content);
+      const range = selectionData.range;
+      if (!range) {
+        throw new Error('Selection range missing for refinement.');
       }
 
-      setPendingContent(newContent);
-      setReviewSource('Refinement');
-      setIsReviewing(true);
+      const actor: ChangeActor = { type: 'LLM', model };
+      const { previewContent, event } = buildReplaceSelectionAiReview({
+        baseContent: content,
+        from: range.start,
+        to: range.end,
+        replacementText: text,
+        actor,
+      });
+
+      setAiReview({
+        kind: 'Refinement',
+        baseContent: content,
+        actor,
+        event,
+        previewContent,
+        replacementText: text,
+      });
 
       setRefinePrompt('');
       setSelectionData(null);
@@ -293,13 +315,13 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       currentVersionStartedAt: Date.now(),
       currentVersionId: generateId(),
       lastLlmContent: null,
+      changeEvents: [],
       lastModified: Date.now()
     };
 
-    setShowWorkingDiff(false);
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
+    setChangeEvents([]);
+    setShowHighlights(false);
+    setAiReview(null);
     onUpdateSection(nextSection);
   };
 
@@ -381,28 +403,11 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         </div>
       )}
 
-      {/* Right Pane: Editor or Diff Viewer */}
+      {/* Right Pane: Editor */}
       <div className="flex-1 min-h-[60vh] flex flex-col relative bg-white/90 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        {isReviewing && pendingContent !== null ? (
-          <DiffViewer
-            original={content}
-            modified={pendingContent}
-            onAccept={handleAcceptChange}
-            onReject={handleRejectChange}
-          />
-        ) : showWorkingDiff ? (
-          <AttributedDiffViewer
-            base={workingBase}
-            target={content}
-            title="Working Draft Diff"
-            subtitle={workingDiffSubtitle}
-            onClose={() => setShowWorkingDiff(false)}
-            closeLabel="Hide Diff"
-          />
-        ) : (
-          <>
-            {/* Toolbar */}
-            <div className="h-12 border-b border-slate-200 flex items-center px-4 gap-3 bg-slate-50 justify-between">
+        <>
+          {/* Toolbar */}
+          <div className="h-12 border-b border-slate-200 flex items-center px-4 gap-3 bg-slate-50 justify-between">
               <div className="flex items-center gap-2 flex-1 overflow-hidden">
                 <button
                   onClick={() => setShowDetails(!showDetails)}
@@ -454,20 +459,22 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 </div>
 
                 <button
-                  onClick={() => setShowWorkingDiff(!showWorkingDiff)}
+                  onClick={() => setShowHighlights(!showHighlights)}
                   disabled={isReviewing}
-                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors border ${showWorkingDiff ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300 hover:bg-slate-100'}`}
-                  title="Toggle working draft diff"
+                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors border ${showHighlights ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300 hover:bg-slate-100'}`}
+                  title="Toggle highlights for tracked edits"
                 >
-                  {showWorkingDiff ? <EyeOff size={18} /> : <Eye size={18} />}
-                  {showWorkingDiff ? 'Hide Diff' : 'Show Diff'}
+                  {showHighlights ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showHighlights ? 'Hide Edits' : 'Show Edits'}
                 </button>
               </div>
-            </div>
+          </div>
 
-            {/* Rich Editor Component */}
-            <div className="flex-1 overflow-hidden relative">
-              <RichEditor
+          {/* Rich Editor Component */}
+          <div className="flex-1 overflow-hidden relative flex">
+            <div className={`flex-1 overflow-hidden ${isReviewing ? 'pointer-events-none opacity-40' : ''}`}>
+              <ProseMirrorEditor
+                key={`${section.id}:${section.currentVersionId || ''}`}
                 ref={editorRef}
                 className="h-full overflow-y-auto"
                 content={content}
@@ -478,11 +485,28 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 onMouseUp={handleMouseUp}
                 placeholder="Start writing..."
                 renderCitations={showCitations}
+                trackChanges={{
+                  baseContent: workingBase ?? '',
+                  events: changeEvents,
+                  actor: {
+                    type: 'USER',
+                    userId: user?.id || 'unknown',
+                    name: user?.fullName || user?.primaryEmailAddress?.emailAddress || null,
+                  },
+                  showHighlights,
+                  onEventsChange: setChangeEvents,
+                }}
               />
             </div>
+            {showHighlights && !isReviewing && (
+              <div className="hidden lg:flex">
+                <ChangePanel events={changeEvents} />
+              </div>
+            )}
+          </div>
 
-            {/* Floating AI Edit Popup */}
-            {popupPosition && selectionData && (
+          {/* Floating AI Edit Popup */}
+          {!isReviewing && popupPosition && selectionData && (
               <div
                 className="fixed z-50 bg-white shadow-xl border border-slate-200 rounded-lg p-1.5 animate-in fade-in zoom-in-95 duration-200 flex items-center gap-2"
                 style={{ left: popupPosition.x, top: popupPosition.y, transform: 'translate(-50%, -100%)' }}
@@ -519,19 +543,31 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   </div>
                 )}
               </div>
-            )}
+          )}
 
-            {/* Footer Stats */}
-            <div className="h-12 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 bg-slate-50 justify-between flex-wrap gap-2">
+          {/* Footer Stats */}
+          <div className="h-12 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 bg-slate-50 justify-between flex-wrap gap-2">
               <div className="flex items-center gap-4">
                 <span><span className="font-semibold text-slate-700">{contentStats.words}</span> words</span>
                 <span><span className="font-semibold text-slate-700">{contentStats.charsWithSpaces}</span> chars (with spaces)</span>
                 <span><span className="font-semibold text-slate-700">{contentStats.charsWithoutSpaces}</span> chars (no spaces)</span>
               </div>
               <span className="text-slate-600 font-medium">Saved</span>
-            </div>
-          </>
-        )}
+          </div>
+
+          {aiReview && (
+            <AiReviewOverlay
+              baseContent={aiReview.baseContent}
+              previewContent={aiReview.previewContent}
+              event={aiReview.event}
+              bibliographyOrder={bibliographyOrder}
+              references={project.references}
+              title={aiReview.kind === 'Draft' ? 'Review AI draft' : 'Review AI refinement'}
+              onAccept={handleAcceptChange}
+              onDiscard={handleRejectChange}
+            />
+          )}
+        </>
       </div>
 
       {/* Citation Modal */}
@@ -563,8 +599,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   key={ref.id}
                   className="w-full text-left p-3 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200 transition-all group"
                   onClick={() => {
-                    // Insert text at cursor using Ref
-                    insertText(` [[ref:${ref.id}]]`);
+                    insertCitation(ref.id);
                     setShowCitationModal(false);
                   }}
                 >
