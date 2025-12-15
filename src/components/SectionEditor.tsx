@@ -167,15 +167,21 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         content: content,
         notes: notes,
         commitMessage: `Auto-save before AI ${aiReview.kind}`,
-        source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
+        source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER',
+        baseContent: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
+        changeEvents: Array.isArray(changeEvents) ? [...changeEvents] : [],
+        versionStartedAt: section.currentVersionStartedAt || section.lastModified || Date.now(),
       });
     }
 
     const nextContent = aiReview.previewContent;
+    const nextChangeEvents = changeEvents.some((evt) => evt.id === aiReview.event.id)
+      ? changeEvents
+      : [aiReview.event, ...changeEvents];
     if (aiReview.kind === 'Draft') {
-      editorRef.current?.applyContentReplacement(nextContent, aiReview.actor);
+      editorRef.current?.applyContentReplacement(nextContent, aiReview.actor, aiReview.event);
     } else {
-      editorRef.current?.applyLockedSelectionReplacement(aiReview.replacementText, aiReview.actor);
+      editorRef.current?.applyLockedSelectionReplacement(aiReview.replacementText, aiReview.actor, aiReview.event);
     }
 
     onUpdateSection({
@@ -187,7 +193,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       currentVersionId: section.currentVersionId || section.id || generateId(),
       currentVersionStartedAt: section.currentVersionStartedAt || Date.now(),
       lastLlmContent: nextContent,
-      changeEvents,
+      changeEvents: nextChangeEvents,
     });
 
     setAiReview(null);
@@ -301,7 +307,10 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       content,
       notes,
       commitMessage: 'Saved before starting new version',
-      source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
+      source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER',
+      baseContent: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
+      changeEvents: Array.isArray(changeEvents) ? [...changeEvents] : [],
+      versionStartedAt: section.currentVersionStartedAt || section.lastModified || Date.now(),
     };
 
     const updatedVersions: SectionVersion[] = hasSnapshotContent ? [snapshotVersion, ...section.versions] : [...section.versions];

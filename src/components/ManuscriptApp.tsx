@@ -12,6 +12,7 @@ import { SectionEditor } from '@/components/SectionEditor';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '@/services/storageService';
 import { exportProjectToWord } from '@/services/exportService';
 import { AppView, Project, Section, SectionView } from '@/types';
+import { getBibliographyOrder } from '@/utils/citationUtils';
 import { calculateTextStats } from '@/utils/textStats';
 import { ArrowLeft, BookOpen, Check, Download, Edit2, FileText, Image as ImageIcon, Info, Plus, Save, Trash2, X } from 'lucide-react';
 
@@ -105,6 +106,11 @@ const ManuscriptApp: React.FC = () => {
       includedFigures: figureTotals.includedFigures,
     };
   }, [currentProject]);
+
+  const bibliographyOrder = useMemo(
+    () => (currentProject ? getBibliographyOrder(currentProject.sections) : []),
+    [currentProject]
+  );
 
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
@@ -675,6 +681,8 @@ const ManuscriptApp: React.FC = () => {
             {activeTab === SectionView.VERSIONS && activeSection && (
               <HistoryViewer
                 section={activeSection}
+                bibliographyOrder={bibliographyOrder}
+                references={currentProject.references}
                 onClose={() => setActiveTab(SectionView.EDITOR)}
                 onRestore={(version) => {
                   handleUpdateSection({

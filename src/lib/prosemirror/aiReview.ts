@@ -1,4 +1,5 @@
 import { EditorState } from 'prosemirror-state';
+import { Slice } from 'prosemirror-model';
 import { manuscriptSchema } from '@/lib/prosemirror/schema';
 import { contentToProseMirrorDoc, proseMirrorDocToContent } from '@/lib/prosemirror/serialization';
 import { generateId } from '@/lib/projects';
@@ -49,7 +50,9 @@ export const buildReplaceSelectionAiReview = ({
   const state = EditorState.create({ schema: manuscriptSchema, doc: baseDoc });
   const safeFrom = Math.max(0, Math.min(from, state.doc.content.size));
   const safeTo = Math.max(0, Math.min(to, state.doc.content.size));
-  const tr = state.tr.insertText(replacementText ?? '', safeFrom, safeTo);
+  const replacementDoc = contentToProseMirrorDoc(manuscriptSchema, replacementText ?? '');
+  const slice = Slice.maxOpen(replacementDoc.content);
+  const tr = state.tr.replaceRange(safeFrom, safeTo, slice);
   const previewContent = proseMirrorDocToContent(tr.doc);
   const now = Date.now();
 
@@ -64,4 +67,3 @@ export const buildReplaceSelectionAiReview = ({
     },
   };
 };
-

@@ -1,3 +1,10 @@
+## 2025-12-14 01:45 EST
+- (Commit: codex/prosemirror-ai-selection-refine) Fixed click-drag selection + AI refine in the ProseMirror editor to preserve multi-paragraph selections and citation atoms by applying replacements as ProseMirror slices (not raw text insertion).
+
+## 2025-12-14 01:34 EST
+- (Commit: codex/version-history-tracked-edits) Added per-version tracked-edit snapshots (base content + change events) so Version History can replay highlights + attribution relative to the document each version started from.
+- Fixed AI-apply flows to persist LLM-attributed change events reliably (so tracked edits survive navigation/reload).
+
 ## 2025-12-14 01:01 EST
 - (Commit: codex/prosemirror-track-changes) Added a ProseMirror section editor with persisted edit-attribution (Clerk user + LLM model) plus a highlight toggle + change panel.
 - Added ProseMirror-native in-text citation rendering (atomic citation nodes with formatted numbering, raw marker display, and clipboard-safe serialization).

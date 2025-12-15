@@ -1,34 +1,56 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { AttributedDiffViewer } from './AttributedDiffViewer';
+import { ChangePanel } from './ChangePanel';
 import { Button } from './Button';
-import { Section, SectionVersion } from '@/types';
+import { ProseMirrorEditor } from './ProseMirrorEditor';
+import type { ChangeActor, Reference, Section, SectionChangeEvent, SectionVersion } from '@/types';
 
 interface HistoryViewerProps {
   section: Section;
+  bibliographyOrder: string[];
+  references: Reference[];
   onRestore: (v: SectionVersion) => void;
   onClose: () => void;
 }
 
-export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore, onClose }) => {
+const HISTORY_ACTOR: ChangeActor = { type: 'USER', userId: 'history', name: 'History' };
+
+export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, bibliographyOrder, references, onRestore, onClose }) => {
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
-  const [showDiff, setShowDiff] = useState(false);
+  const [showHighlights, setShowHighlights] = useState(false);
 
   const handleSelectVersion = (versionId: string) => {
     setSelectedVersionId(versionId);
-    setShowDiff(false);
+    setShowHighlights(false);
   };
 
   const selectedVersion = section.versions.find(v => v.id === selectedVersionId);
   const selectedIndex = selectedVersion ? section.versions.findIndex(v => v.id === selectedVersionId) : -1;
-  const previousContent = selectedVersion
-    ? section.versions[selectedIndex + 1]?.content ?? section.currentVersionBase
-    : section.versions[0]?.content ?? section.currentVersionBase;
+  const isViewingSavedVersion = !!selectedVersionId && !!selectedVersion;
+
+  const fallbackBase =
+    selectedVersion && selectedIndex >= 0
+      ? section.versions[selectedIndex + 1]?.content ?? section.currentVersionBase
+      : section.currentVersionBase;
+
   const displayContent = selectedVersion ? selectedVersion.content : section.content;
-  const hasComparison = selectedVersion
-    ? !!section.versions[selectedIndex + 1] || !!section.currentVersionBase
-    : section.versions.length > 0 || !!section.currentVersionBase;
-  const hasChanges = hasComparison && previousContent !== undefined && previousContent !== null && previousContent !== displayContent;
+  const trackedBaseContent = selectedVersion?.baseContent ?? (isViewingSavedVersion ? fallbackBase : section.currentVersionBase);
+  const trackedEvents: SectionChangeEvent[] = selectedVersion
+    ? Array.isArray(selectedVersion.changeEvents)
+      ? selectedVersion.changeEvents
+      : []
+    : Array.isArray(section.changeEvents)
+      ? section.changeEvents
+      : [];
+
+  const hasAttributionData =
+    selectedVersion
+      ? selectedVersion.baseContent !== undefined || Array.isArray(selectedVersion.changeEvents)
+      : section.currentVersionBase !== undefined || Array.isArray(section.changeEvents);
+
+  const hasComparison = trackedBaseContent !== undefined && trackedBaseContent !== null;
+  const hasChanges = hasComparison && trackedBaseContent !== displayContent;
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -83,52 +105,85 @@ export const HistoryViewer: React.FC<HistoryViewerProps> = ({ section, onRestore
 
         {/* Content Preview */}
         <div className="flex-1 flex flex-col bg-white min-h-0 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 gap-3">
-              <div className="text-sm text-slate-600">
-                {selectedVersion ? 'Compare to previous version' : 'Compare current draft to last saved version'}
-              </div>
-              <button
-                onClick={() => setShowDiff(!showDiff)}
-                disabled={!hasComparison}
-                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
-                  showDiff ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                } ${!hasComparison ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                {showDiff ? <EyeOff size={14} /> : <Eye size={14} />}
-                {showDiff ? 'Hide Diff' : 'Show Diff'}
-              </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 gap-3">
+            <div className="text-sm text-slate-600">
+              {selectedVersion ? 'Toggle highlights to review edits for this saved version' : 'Toggle highlights to review edits since this version began'}
             </div>
+            <button
+              onClick={() => setShowHighlights(!showHighlights)}
+              disabled={!hasComparison}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                showHighlights ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+              } ${!hasComparison ? 'opacity-60 cursor-not-allowed' : ''}`}
+              title={
+                !hasComparison
+                  ? 'No prior version available for comparison yet.'
+                  : hasAttributionData
+                    ? 'Show tracked edits'
+                    : 'Show a text diff (no attribution data saved for this version).'
+              }
+            >
+              {showHighlights ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showHighlights ? 'Hide Edits' : 'Show Edits'}
+            </button>
+          </div>
 
+          <div className="flex-1 min-h-0 flex">
             <div className="flex-1 min-h-0">
-              {showDiff && hasComparison ? (
+              {hasAttributionData && trackedBaseContent !== undefined ? (
+                <ProseMirrorEditor
+                  key={selectedVersion ? `version:${selectedVersion.id}` : `current:${section.currentVersionId || section.id}`}
+                  content={displayContent}
+                  bibliographyOrder={bibliographyOrder}
+                  references={references}
+                  onChange={() => {}}
+                  placeholder=""
+                  renderCitations
+                  readOnly
+                  trackChanges={{
+                    baseContent: trackedBaseContent ?? '',
+                    events: trackedEvents,
+                    actor: HISTORY_ACTOR,
+                    showHighlights,
+                    onEventsChange: () => {},
+                  }}
+                />
+              ) : showHighlights && hasComparison ? (
                 <AttributedDiffViewer
-                  base={previousContent ?? ''}
+                  base={trackedBaseContent ?? ''}
                   target={displayContent}
                   title="Version Diff"
                   subtitle={hasChanges ? 'Compared to prior version' : 'No changes since prior version'}
                 />
               ) : (
-                <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-                  <div className="max-w-5xl mx-auto font-serif text-slate-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl shadow-inner p-4 sm:p-6 lg:p-8">
-                    {displayContent}
-                    {!hasComparison && (
-                      <p className="text-sm text-slate-500 mt-4">
-                        No prior version available for comparison yet.
-                      </p>
-                    )}
-                  </div>
-                </div>
+                <ProseMirrorEditor
+                  key={selectedVersion ? `version:${selectedVersion.id}` : `current:${section.currentVersionId || section.id}`}
+                  content={displayContent}
+                  bibliographyOrder={bibliographyOrder}
+                  references={references}
+                  onChange={() => {}}
+                  placeholder=""
+                  renderCitations
+                  readOnly
+                />
               )}
             </div>
 
-            {selectedVersionId && (
-              <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-                <Button onClick={() => selectedVersion && onRestore(selectedVersion)}>
-                  <RotateCcw size={16} className="mr-2" />
-                  Restore This Version
-                </Button>
+            {showHighlights && hasAttributionData && (
+              <div className="hidden lg:flex">
+                <ChangePanel events={trackedEvents} />
               </div>
             )}
+          </div>
+
+          {selectedVersionId && (
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <Button onClick={() => selectedVersion && onRestore(selectedVersion)}>
+                <RotateCcw size={16} className="mr-2" />
+                Restore This Version
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

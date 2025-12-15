@@ -54,7 +54,19 @@ const normalizeSection = (section: Partial<Section>, fallbackTime: number): Sect
     content: section.content || '',
     userNotes: section.userNotes || '',
     versions: Array.isArray(section.versions)
-      ? section.versions.map((v) => ({ ...v, source: v?.source || 'USER' }))
+      ? section.versions.map((v) => {
+          const raw = v as any;
+          const normalizedChangeEvents = Array.isArray(raw?.changeEvents) ? raw.changeEvents : undefined;
+          const normalizedBaseContent = typeof raw?.baseContent === 'string' ? raw.baseContent : undefined;
+          const normalizedStartedAt = typeof raw?.versionStartedAt === 'number' ? raw.versionStartedAt : undefined;
+          return {
+            ...v,
+            source: v?.source || 'USER',
+            baseContent: normalizedBaseContent,
+            changeEvents: normalizedChangeEvents,
+            versionStartedAt: normalizedStartedAt,
+          };
+        })
       : [],
     lastModified: sectionModified,
     useReferences: section.useReferences !== undefined ? section.useReferences : true,

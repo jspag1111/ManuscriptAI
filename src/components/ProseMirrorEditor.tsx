@@ -2,6 +2,7 @@
 
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { EditorState, type Transaction } from 'prosemirror-state';
+import { Slice } from 'prosemirror-model';
 import { EditorView, type NodeView } from 'prosemirror-view';
 import { history, undo, redo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
@@ -24,8 +25,16 @@ export interface ProseMirrorEditorHandle {
   clearLock: () => void;
   setContent: (content: string) => void;
   getContent: () => string;
-  applyContentReplacement: (nextContent: string, actor: ChangeActor) => void;
-  applyLockedSelectionReplacement: (text: string, actor: ChangeActor) => void;
+  applyContentReplacement: (
+    nextContent: string,
+    actor: ChangeActor,
+    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+  ) => void;
+  applyLockedSelectionReplacement: (
+    text: string,
+    actor: ChangeActor,
+    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+  ) => void;
 }
 
 interface ProseMirrorEditorProps {
@@ -124,6 +133,12 @@ const eventToTrackData = (event: SectionChangeEvent): TrackChangeData => ({
   timestamp: event.timestamp,
 });
 
+type ChangeEventOverride = {
+  id?: string;
+  timestamp?: number;
+  selection?: SectionChangeEvent['selection'];
+};
+
 export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirrorEditorProps>(
   (
     {
@@ -209,7 +224,18 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         handler(null, '');
         return;
       }
-      const text = state.doc.textBetween(from, to, '\n');
+      const text = state.doc.textBetween(from, to, '\n', (node) => {
+        if (node.type.name === 'citation') {
+          const ids = Array.isArray((node as any).attrs?.ids)
+            ? ((node as any).attrs.ids as string[]).map((id) => String(id)).filter(Boolean)
+            : [];
+          return ids.map((id) => `[[ref:${id}]]`).join(' ');
+        }
+        if (node.type.name === 'hard_break') {
+          return '\n';
+        }
+        return '';
+      });
       handler({ start: from, end: to }, text);
     };
 
@@ -220,22 +246,34 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
       const tracking = callbacksRef.current.trackChanges;
       if (tr.docChanged && tracking) {
         const now = Date.now();
+        const overrideEvent = tr.getMeta('manuscriptChangeEvent') as ChangeEventOverride | undefined;
         const actorOverride = tr.getMeta('manuscriptActor') as ChangeActor | undefined;
         const actor = actorOverride ?? tracking.actor;
 
         const existing = eventsRef.current || [];
         const last = existing[0];
+        const allowMerge = !overrideEvent?.id;
         const shouldMerge =
+          allowMerge &&
           !!last &&
           changeActorKey(last.actor) === changeActorKey(actor) &&
           now - last.timestamp < 2000;
 
-        const eventId = shouldMerge ? last.id : generateId();
+        const eventId = overrideEvent?.id ? overrideEvent.id : shouldMerge ? last.id : generateId();
+        const eventTimestamp =
+          typeof overrideEvent?.timestamp === 'number' && Number.isFinite(overrideEvent.timestamp)
+            ? overrideEvent.timestamp
+            : now;
         const nextEvent: SectionChangeEvent = {
           id: eventId,
-          timestamp: now,
+          timestamp: eventTimestamp,
           actor,
-          selection: tr.selection?.from !== undefined ? { from: tr.selection.from, to: tr.selection.to } : null,
+          selection:
+            overrideEvent?.selection !== undefined
+              ? overrideEvent.selection
+              : tr.selection?.from !== undefined
+                ? { from: tr.selection.from, to: tr.selection.to }
+                : null,
           steps: tr.steps.map((step) => step.toJSON()),
         };
 
@@ -257,7 +295,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           actorKey: changeActorKey(actor),
           actorLabel: changeActorLabel(actor),
           actorType: actor.type,
-          timestamp: now,
+          timestamp: eventTimestamp,
         };
         tr.setMeta(trackChangesPluginKey, { type: 'add', data });
         eventsRef.current = nextEvents;
@@ -436,7 +474,16 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           if (!view) return null;
           const { from, to, empty } = view.state.selection;
           if (empty) return null;
-          const text = view.state.doc.textBetween(from, to, '\n');
+          const text = view.state.doc.textBetween(from, to, '\n', (node) => {
+            if (node.type.name === 'citation') {
+              const ids = Array.isArray((node as any).attrs?.ids)
+                ? ((node as any).attrs.ids as string[]).map((id) => String(id)).filter(Boolean)
+                : [];
+              return ids.map((id) => `[[ref:${id}]]`).join(' ');
+            }
+            if (node.type.name === 'hard_break') return '\n';
+            return '';
+          });
           view.dispatch(view.state.tr.setMeta(selectionLockPluginKey, { type: 'set', from, to }));
           return text;
         },
@@ -449,7 +496,9 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
 
           // IMPORTANT: This returns the *proposed* content string without mutating the editor.
           // SectionEditor uses this during AI review flows and only applies updates on accept.
-          const tr = view.state.tr.insertText(text, from, to);
+          const replacementDoc = contentToProseMirrorDoc(manuscriptSchema, text ?? '');
+          const slice = Slice.maxOpen(replacementDoc.content);
+          const tr = view.state.tr.replaceRange(from, to, slice);
           const nextState = view.state.apply(tr);
           const proposed = proseMirrorDocToContent(nextState.doc);
 
@@ -481,24 +530,40 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           if (!view) return content ?? '';
           return proseMirrorDocToContent(view.state.doc);
         },
-        applyContentReplacement: (nextContent: string, actor: ChangeActor) => {
+        applyContentReplacement: (
+          nextContent: string,
+          actor: ChangeActor,
+          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+        ) => {
           const view = viewRef.current;
           if (!view || readOnly) return;
           const nextDoc = contentToProseMirrorDoc(manuscriptSchema, nextContent ?? '');
           const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, nextDoc.content);
           tr.setMeta('manuscriptActor', actor);
+          if (event) {
+            tr.setMeta('manuscriptChangeEvent', { id: event.id, timestamp: event.timestamp, selection: event.selection });
+          }
           tr.setMeta(selectionLockPluginKey, { type: 'clear' });
           view.focus();
           view.dispatch(tr);
         },
-        applyLockedSelectionReplacement: (text: string, actor: ChangeActor) => {
+        applyLockedSelectionReplacement: (
+          text: string,
+          actor: ChangeActor,
+          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+        ) => {
           const view = viewRef.current;
           if (!view || readOnly) return;
           const lock = selectionLockPluginKey.getState(view.state);
           const from = lock?.from ?? view.state.selection.from;
           const to = lock?.to ?? view.state.selection.to;
-          const tr = view.state.tr.insertText(text, from, to);
+          const replacementDoc = contentToProseMirrorDoc(manuscriptSchema, text ?? '');
+          const slice = Slice.maxOpen(replacementDoc.content);
+          const tr = view.state.tr.replaceRange(from, to, slice);
           tr.setMeta('manuscriptActor', actor);
+          if (event) {
+            tr.setMeta('manuscriptChangeEvent', { id: event.id, timestamp: event.timestamp, selection: event.selection });
+          }
           tr.setMeta(selectionLockPluginKey, { type: 'clear' });
           view.focus();
           view.dispatch(tr);
