@@ -10,11 +10,13 @@ export const buildReplaceAllAiReview = ({
   nextContent,
   actor,
   request,
+  commentId,
 }: {
   baseContent: string;
   nextContent: string;
   actor: ChangeActor;
   request?: string | null;
+  commentId?: string | null;
 }): { previewContent: string; event: SectionChangeEvent } => {
   const baseDoc = contentToProseMirrorDoc(manuscriptSchema, baseContent ?? '');
   const nextDoc = contentToProseMirrorDoc(manuscriptSchema, nextContent ?? '');
@@ -31,6 +33,7 @@ export const buildReplaceAllAiReview = ({
       timestamp: now,
       actor,
       selection: { from: 0, to: state.doc.content.size },
+      ...(commentId ? { commentId } : {}),
       ...(trimmedRequest ? { request: trimmedRequest } : {}),
       steps: tr.steps.map((step) => step.toJSON()),
     },
@@ -44,6 +47,7 @@ export const buildReplaceSelectionAiReview = ({
   replacementText,
   actor,
   request,
+  commentId,
 }: {
   baseContent: string;
   from: number;
@@ -51,6 +55,7 @@ export const buildReplaceSelectionAiReview = ({
   replacementText: string;
   actor: ChangeActor;
   request?: string | null;
+  commentId?: string | null;
 }): { previewContent: string; event: SectionChangeEvent } => {
   const baseDoc = contentToProseMirrorDoc(manuscriptSchema, baseContent ?? '');
   const state = EditorState.create({ schema: manuscriptSchema, doc: baseDoc });
@@ -70,6 +75,7 @@ export const buildReplaceSelectionAiReview = ({
       timestamp: now,
       actor,
       selection: { from: safeFrom, to: safeTo },
+      ...(commentId ? { commentId } : {}),
       ...(trimmedRequest ? { request: trimmedRequest } : {}),
       steps: tr.steps.map((step) => step.toJSON()),
     },

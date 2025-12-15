@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Bot, FileText, User, X } from 'lucide-react';
+import { Bot, FileText, MessageSquareText, User, X } from 'lucide-react';
 import type { ChangeActor, SectionChangeEvent } from '@/types';
 import { colorForChangeActorKey } from '@/utils/changeColors';
 
@@ -43,6 +43,7 @@ export const ChangePanel: React.FC<{
             const isSelected = !!selectedEventId && event.id === selectedEventId;
             const hasRequest = event.actor.type === 'LLM' && typeof event.request === 'string' && event.request.trim().length > 0;
             const requestPreview = hasRequest ? (event.request as string).trim().replace(/\s+/g, ' ').slice(0, 80) : '';
+            const hasCommentLink = typeof event.commentId === 'string' && event.commentId.trim().length > 0;
 
             return (
               <div
@@ -85,6 +86,12 @@ export const ChangePanel: React.FC<{
                         </span>
                         <span>{ops} step{ops === 1 ? '' : 's'}</span>
                         {range && <span>pos {range}</span>}
+                        {hasCommentLink && (
+                          <span className="inline-flex items-center gap-1 text-amber-700" title={`Linked to comment ${event.commentId}`}>
+                            <MessageSquareText size={12} />
+                            Comment
+                          </span>
+                        )}
                       </div>
                       {hasRequest && (
                         <div className="mt-2 flex items-center justify-between gap-2">

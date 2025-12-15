@@ -45,6 +45,78 @@ export const normalizeFigure = (figure: Partial<GeneratedFigure> = {}, index = 0
   };
 };
 
+const normalizeCommentAuthor = (raw: any): { userId: string; name?: string | null } => {
+  const userId = typeof raw?.userId === 'string' && raw.userId.trim().length > 0 ? raw.userId : 'unknown';
+  const name = typeof raw?.name === 'string' ? raw.name : null;
+  return name ? { userId, name } : { userId, name: null };
+};
+
+const normalizeCommentThreads = (rawThreads: any, fallbackTime: number) => {
+  if (!Array.isArray(rawThreads)) return [];
+  return rawThreads
+    .filter(Boolean)
+    .map((raw) => {
+      const createdAt = typeof raw?.createdAt === 'number' ? raw.createdAt : fallbackTime;
+      const updatedAt = typeof raw?.updatedAt === 'number' ? raw.updatedAt : createdAt;
+      const createdBy = normalizeCommentAuthor(raw?.createdBy);
+
+      const anchorRaw = raw?.anchor;
+      const anchor =
+        anchorRaw &&
+        typeof anchorRaw?.from === 'number' &&
+        typeof anchorRaw?.to === 'number' &&
+        anchorRaw.from < anchorRaw.to
+          ? {
+              from: anchorRaw.from,
+              to: anchorRaw.to,
+              text: typeof anchorRaw?.text === 'string' ? anchorRaw.text : '',
+              orphaned: anchorRaw?.orphaned === true,
+            }
+          : null;
+
+      const messages = Array.isArray(raw?.messages)
+        ? raw.messages
+            .filter(Boolean)
+            .map((m: any) => ({
+              id: typeof m?.id === 'string' && m.id ? m.id : generateId(),
+              createdAt: typeof m?.createdAt === 'number' ? m.createdAt : createdAt,
+              author: normalizeCommentAuthor(m?.author),
+              content: typeof m?.content === 'string' ? m.content : '',
+            }))
+        : [];
+
+      const aiEdits = Array.isArray(raw?.aiEdits)
+        ? raw.aiEdits
+            .filter(Boolean)
+            .map((edit: any) => ({
+              id: typeof edit?.id === 'string' && edit.id ? edit.id : generateId(),
+              createdAt: typeof edit?.createdAt === 'number' ? edit.createdAt : updatedAt,
+              model: typeof edit?.model === 'string' ? edit.model : 'unknown',
+              changeEventId: typeof edit?.changeEventId === 'string' ? edit.changeEventId : '',
+            }))
+            .filter((edit: any) => edit.changeEventId)
+        : [];
+
+      const status: 'OPEN' | 'RESOLVED' = raw?.status === 'RESOLVED' ? 'RESOLVED' : 'OPEN';
+      const resolvedAt = typeof raw?.resolvedAt === 'number' ? raw.resolvedAt : null;
+      const resolvedBy = raw?.resolvedBy ? normalizeCommentAuthor(raw.resolvedBy) : null;
+
+      return {
+        id: typeof raw?.id === 'string' && raw.id ? raw.id : generateId(),
+        createdAt,
+        updatedAt,
+        createdBy,
+        anchor,
+        excerpt: typeof raw?.excerpt === 'string' ? raw.excerpt : '',
+        messages,
+        status,
+        resolvedAt,
+        resolvedBy,
+        aiEdits,
+      };
+    });
+};
+
 const normalizeSection = (section: Partial<Section>, fallbackTime: number): Section => {
   const legacyLastModified = (section as any).last_modified as number | undefined;
   const sectionModified = section.lastModified || legacyLastModified || fallbackTime;
@@ -59,11 +131,13 @@ const normalizeSection = (section: Partial<Section>, fallbackTime: number): Sect
           const normalizedChangeEvents = Array.isArray(raw?.changeEvents) ? raw.changeEvents : undefined;
           const normalizedBaseContent = typeof raw?.baseContent === 'string' ? raw.baseContent : undefined;
           const normalizedStartedAt = typeof raw?.versionStartedAt === 'number' ? raw.versionStartedAt : undefined;
+          const normalizedCommentThreads = normalizeCommentThreads(raw?.commentThreads, fallbackTime);
           return {
             ...v,
             source: v?.source || 'USER',
             baseContent: normalizedBaseContent,
             changeEvents: normalizedChangeEvents,
+            commentThreads: normalizedCommentThreads,
             versionStartedAt: normalizedStartedAt,
           };
         })
@@ -76,6 +150,7 @@ const normalizeSection = (section: Partial<Section>, fallbackTime: number): Sect
     currentVersionStartedAt: section.currentVersionStartedAt || sectionModified,
     lastLlmContent: section.lastLlmContent ?? null,
     changeEvents: Array.isArray((section as any).changeEvents) ? ((section as any).changeEvents as any) : [],
+    commentThreads: normalizeCommentThreads((section as any).commentThreads, sectionModified),
   };
 
   return withDefaults;

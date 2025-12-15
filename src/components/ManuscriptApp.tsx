@@ -160,6 +160,7 @@ const ManuscriptApp: React.FC = () => {
       currentVersionStartedAt: Date.now(),
       lastLlmContent: null,
       changeEvents: [],
+      commentThreads: [],
     }));
 
     try {
@@ -242,7 +243,9 @@ const ManuscriptApp: React.FC = () => {
       currentVersionId: generateId(),
       currentVersionBase: '',
       currentVersionStartedAt: Date.now(),
-      lastLlmContent: null
+      lastLlmContent: null,
+      changeEvents: [],
+      commentThreads: [],
     };
 
     if (currentProject) {
@@ -695,8 +698,15 @@ const ManuscriptApp: React.FC = () => {
                     currentVersionId: generateId(),
                     lastLlmContent: null,
                     changeEvents: [],
+                    commentThreads: Array.isArray(version.commentThreads) ? version.commentThreads : [],
                     versions: [
-                      { ...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`, source: 'USER' },
+                      {
+                        ...version,
+                        id: generateId(),
+                        timestamp: Date.now(),
+                        commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`,
+                        source: 'USER',
+                      },
                       ...activeSection.versions
                     ]
                   });

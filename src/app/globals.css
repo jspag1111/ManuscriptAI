@@ -49,3 +49,22 @@ a {
 .pm-change {
   border-radius: 4px;
 }
+
+.pm-comment {
+  border-radius: 4px;
+}
+
+.pm-comment-open {
+  background: rgba(245, 158, 11, 0.14);
+  box-shadow: inset 0 -2px 0 rgba(245, 158, 11, 0.55);
+}
+
+.pm-comment-resolved {
+  background: rgba(148, 163, 184, 0.14);
+  box-shadow: inset 0 -2px 0 rgba(148, 163, 184, 0.6);
+}
+
+.pm-comment-selected {
+  outline: 2px solid rgba(245, 158, 11, 0.65);
+  outline-offset: 1px;
+}

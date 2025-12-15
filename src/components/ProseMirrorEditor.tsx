@@ -9,11 +9,12 @@ import { keymap } from 'prosemirror-keymap';
 import { baseKeymap } from 'prosemirror-commands';
 import { manuscriptSchema } from '@/lib/prosemirror/schema';
 import { contentToProseMirrorDoc, proseMirrorDocToContent } from '@/lib/prosemirror/serialization';
+import { commentHighlightsPlugin } from '@/lib/prosemirror/plugins/comments';
 import { placeholderPlugin } from '@/lib/prosemirror/plugins/placeholder';
 import { selectionLockPlugin, selectionLockPluginKey } from '@/lib/prosemirror/plugins/selectionLock';
 import { trackChangesPlugin, trackChangesPluginKey, type TrackChangeData } from '@/lib/prosemirror/plugins/trackChanges';
 import { formatCitationRanges } from '@/utils/citationUtils';
-import type { Reference } from '@/types';
+import type { Reference, SectionCommentThread } from '@/types';
 import type { ChangeActor, SectionChangeEvent } from '@/types';
 import { generateId } from '@/lib/projects';
 
@@ -21,20 +22,22 @@ export interface ProseMirrorEditorHandle {
   insertAtCursor: (text: string) => void;
   insertCitation: (ids: string[]) => void;
   lockSelection: () => string | null;
+  highlightRange: (range: { from: number; to: number } | null) => void;
   replaceLockedSelection: (text: string) => string;
   clearLock: () => void;
+  getTextInRange: (range: { from: number; to: number }) => string;
   focusChangeEvent: (eventId: string | null, selection?: { from: number; to: number } | null) => void;
   setContent: (content: string) => void;
   getContent: () => string;
   applyContentReplacement: (
     nextContent: string,
     actor: ChangeActor,
-    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
+    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request' | 'commentId'>
   ) => void;
   applyLockedSelectionReplacement: (
     text: string,
     actor: ChangeActor,
-    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
+    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request' | 'commentId'>
   ) => void;
 }
 
@@ -49,12 +52,18 @@ interface ProseMirrorEditorProps {
   className?: string;
   renderCitations?: boolean;
   readOnly?: boolean;
+  comments?: {
+    threads: SectionCommentThread[];
+    selectedThreadId?: string | null;
+    onThreadsChange?: (next: SectionCommentThread[]) => void;
+  };
   trackChanges?: {
     baseContent: string;
     events: SectionChangeEvent[];
     actor: ChangeActor;
     showHighlights: boolean;
     onEventsChange: (next: SectionChangeEvent[]) => void;
+    activeCommentId?: string | null;
   };
 }
 
@@ -154,6 +163,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
       className,
       renderCitations = true,
       readOnly = false,
+      comments,
       trackChanges,
     },
     ref
@@ -164,20 +174,44 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
     const isInternalUpdate = useRef(false);
     const eventsRef = useRef<SectionChangeEvent[]>(trackChanges?.events ?? []);
     const initialTrackChangesRef = useRef(trackChanges);
+    const commentThreadsRef = useRef<SectionCommentThread[]>(comments?.threads ?? []);
     const citationConfigRef = useRef({
       bibliographyOrder,
       renderCitations,
       references,
+    });
+    const commentConfigRef = useRef({
+      threads: comments?.threads ?? [],
+      selectedThreadId: comments?.selectedThreadId ?? null,
     });
     const callbacksRef = useRef({
       content,
       onChange,
       onSelect,
       onMouseUp,
+      comments,
       trackChanges,
     });
 
     const initialShowHighlightsRef = useRef(initialTrackChangesRef.current?.showHighlights ?? false);
+
+    const textBetweenWithCitations = (from: number, to: number) => {
+      const view = viewRef.current;
+      if (!view) return '';
+      const doc = view.state.doc;
+      return doc.textBetween(from, to, '\n', (node) => {
+        if (node.type.name === 'citation') {
+          const ids = Array.isArray((node as any).attrs?.ids)
+            ? ((node as any).attrs.ids as string[]).map((id) => String(id)).filter(Boolean)
+            : [];
+          return ids.map((id) => `[[ref:${id}]]`).join(' ');
+        }
+        if (node.type.name === 'hard_break') {
+          return '\n';
+        }
+        return '';
+      });
+    };
 
     const plugins = useMemo(() => {
       const base = [
@@ -186,6 +220,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         keymap(baseKeymap),
         placeholderPlugin(placeholder || ''),
         selectionLockPlugin(),
+        commentHighlightsPlugin(commentConfigRef),
       ];
 
       const initialTrackChanges = initialTrackChangesRef.current;
@@ -251,6 +286,8 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         const overrideEvent = tr.getMeta('manuscriptChangeEvent') as ChangeEventOverride | undefined;
         const actorOverride = tr.getMeta('manuscriptActor') as ChangeActor | undefined;
         const actor = actorOverride ?? tracking.actor;
+        const commentIdOverride = tr.getMeta('manuscriptCommentId') as string | null | undefined;
+        const commentId = commentIdOverride ?? tracking.activeCommentId ?? null;
 
         const existing = eventsRef.current || [];
         const last = existing[0];
@@ -259,6 +296,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           allowMerge &&
           !!last &&
           changeActorKey(last.actor) === changeActorKey(actor) &&
+          (last.commentId ?? null) === commentId &&
           now - last.timestamp < 2000;
 
         const eventId = overrideEvent?.id ? overrideEvent.id : shouldMerge ? last.id : generateId();
@@ -270,6 +308,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           id: eventId,
           timestamp: eventTimestamp,
           actor,
+          ...(commentId ? { commentId } : {}),
           selection:
             overrideEvent?.selection !== undefined
               ? overrideEvent.selection
@@ -293,6 +332,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
                 steps: [...(Array.isArray(last.steps) ? last.steps : []), ...nextEvent.steps],
                 selection: nextEvent.selection ?? last.selection ?? null,
                 request: nextEvent.request ?? last.request ?? undefined,
+                commentId: nextEvent.commentId ?? last.commentId ?? null,
               },
               ...existing.slice(1),
             ]
@@ -312,6 +352,48 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
       }
 
       const nextState = view.state.apply(tr);
+
+      const commentCallbacks = callbacksRef.current.comments;
+      if (tr.docChanged && commentCallbacks?.onThreadsChange) {
+        const currentThreads = commentThreadsRef.current ?? [];
+        if (currentThreads.length > 0) {
+          const maxPos = nextState.doc.content.size;
+          let didChange = false;
+          const nextThreads = currentThreads.map((thread) => {
+            const anchor = thread.anchor;
+            if (!anchor) return thread;
+            if (anchor.orphaned) return thread;
+            const fromResult = tr.mapping.mapResult(anchor.from, 1);
+            const toResult = tr.mapping.mapResult(anchor.to, -1);
+            const mappedFrom = Math.max(0, Math.min(fromResult.pos, maxPos));
+            const mappedTo = Math.max(0, Math.min(toResult.pos, maxPos));
+            const orphaned = (fromResult.deleted && toResult.deleted) || mappedFrom >= mappedTo;
+            if (mappedFrom === anchor.from && mappedTo === anchor.to && orphaned === !!anchor.orphaned) {
+              return thread;
+            }
+            didChange = true;
+            return {
+              ...thread,
+              anchor: {
+                ...anchor,
+                from: mappedFrom,
+                to: mappedTo,
+                orphaned,
+              },
+            };
+          });
+
+          if (didChange) {
+            commentThreadsRef.current = nextThreads;
+            commentConfigRef.current = {
+              threads: nextThreads,
+              selectedThreadId: commentConfigRef.current.selectedThreadId,
+            };
+            commentCallbacks.onThreadsChange(nextThreads);
+          }
+        }
+      }
+
       view.updateState(nextState);
 
       emitSelection(nextState);
@@ -329,12 +411,23 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
     };
 
     useEffect(() => {
-      callbacksRef.current = { content, onChange, onSelect, onMouseUp, trackChanges };
-    }, [content, onChange, onMouseUp, onSelect, trackChanges]);
+      callbacksRef.current = { content, onChange, onSelect, onMouseUp, comments, trackChanges };
+    }, [content, onChange, onMouseUp, onSelect, comments, trackChanges]);
 
     useEffect(() => {
       citationConfigRef.current = { bibliographyOrder, renderCitations, references };
     }, [bibliographyOrder, renderCitations, references]);
+
+    useEffect(() => {
+      commentThreadsRef.current = comments?.threads ?? [];
+      commentConfigRef.current = {
+        threads: comments?.threads ?? [],
+        selectedThreadId: comments?.selectedThreadId ?? null,
+      };
+      const view = viewRef.current;
+      if (!view) return;
+      view.updateState(view.state);
+    }, [comments?.threads, comments?.selectedThreadId]);
 
     useEffect(() => {
       eventsRef.current = trackChanges?.events ?? [];
@@ -496,6 +589,26 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           view.dispatch(view.state.tr.setMeta(selectionLockPluginKey, { type: 'set', from, to }));
           return text;
         },
+        highlightRange: (range) => {
+          const view = viewRef.current;
+          if (!view) return;
+          if (!range) {
+            view.dispatch(view.state.tr.setMeta(selectionLockPluginKey, { type: 'clear' }));
+            return;
+          }
+          const maxPos = view.state.doc.content.size;
+          const from = Math.max(0, Math.min(range.from, maxPos));
+          const to = Math.max(0, Math.min(range.to, maxPos));
+          if (from >= to) {
+            view.dispatch(view.state.tr.setMeta(selectionLockPluginKey, { type: 'clear' }));
+            return;
+          }
+          const tr = view.state.tr
+            .setMeta(selectionLockPluginKey, { type: 'set', from, to })
+            .setSelection(TextSelection.create(view.state.doc, from, to))
+            .scrollIntoView();
+          view.dispatch(tr);
+        },
         replaceLockedSelection: (text: string) => {
           const view = viewRef.current;
           if (!view) return content ?? '';
@@ -520,6 +633,15 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           const view = viewRef.current;
           if (!view) return;
           view.dispatch(view.state.tr.setMeta(selectionLockPluginKey, { type: 'clear' }));
+        },
+        getTextInRange: ({ from, to }) => {
+          const view = viewRef.current;
+          if (!view) return '';
+          const maxPos = view.state.doc.content.size;
+          const safeFrom = Math.max(0, Math.min(from, maxPos));
+          const safeTo = Math.max(0, Math.min(to, maxPos));
+          if (safeFrom >= safeTo) return '';
+          return textBetweenWithCitations(safeFrom, safeTo);
         },
         focusChangeEvent: (eventId: string | null, selection?: { from: number; to: number } | null) => {
           const view = viewRef.current;
@@ -569,7 +691,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         applyContentReplacement: (
           nextContent: string,
           actor: ChangeActor,
-          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
+          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request' | 'commentId'>
         ) => {
           const view = viewRef.current;
           if (!view || readOnly) return;
@@ -583,6 +705,9 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
               selection: event.selection,
               request: event.request,
             });
+            if (event.commentId) {
+              tr.setMeta('manuscriptCommentId', event.commentId);
+            }
           }
           tr.setMeta(selectionLockPluginKey, { type: 'clear' });
           view.focus();
@@ -591,7 +716,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         applyLockedSelectionReplacement: (
           text: string,
           actor: ChangeActor,
-          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
+          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request' | 'commentId'>
         ) => {
           const view = viewRef.current;
           if (!view || readOnly) return;
@@ -609,6 +734,9 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
               selection: event.selection,
               request: event.request,
             });
+            if (event.commentId) {
+              tr.setMeta('manuscriptCommentId', event.commentId);
+            }
           }
           tr.setMeta(selectionLockPluginKey, { type: 'clear' });
           view.focus();

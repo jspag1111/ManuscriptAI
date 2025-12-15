@@ -1,3 +1,8 @@
+## 2025-12-15 16:12 EST
+- (Commit: codex/inline-comments-panel) Added inline text comments with a selection toolbar (AI + comment actions), a right-side Comments panel (with mobile drawer), threaded replies, resolve/reopen, and Open/Resolved/All filters.
+- Added comment highlighting in the editor plus comment-linked tracked-edit attribution (Change panel shows a Comment badge when an edit is related to a comment).
+- Added “Address with AI” on comment threads to propose tracked edits using the selected text + comment thread context, and persisted comment threads (including resolve metadata and AI links) into section version snapshots/restores.
+
 ## 2025-12-15 15:06 EST
 - (Commit: codex/change-panel-focus-and-llm-request) Added click-to-focus in the Edits panel so selecting an edit highlights (and scrolls to) the exact tracked-change spans it produced.
 - Added optional persisted LLM request text on tracked change events, with a compact preview + modal viewer in the Edits panel.
