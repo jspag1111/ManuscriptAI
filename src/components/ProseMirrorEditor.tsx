@@ -1,7 +1,7 @@
 'use client';
 
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { EditorState, type Transaction } from 'prosemirror-state';
+import { EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 import { Slice } from 'prosemirror-model';
 import { EditorView, type NodeView } from 'prosemirror-view';
 import { history, undo, redo } from 'prosemirror-history';
@@ -23,17 +23,18 @@ export interface ProseMirrorEditorHandle {
   lockSelection: () => string | null;
   replaceLockedSelection: (text: string) => string;
   clearLock: () => void;
+  focusChangeEvent: (eventId: string | null, selection?: { from: number; to: number } | null) => void;
   setContent: (content: string) => void;
   getContent: () => string;
   applyContentReplacement: (
     nextContent: string,
     actor: ChangeActor,
-    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
   ) => void;
   applyLockedSelectionReplacement: (
     text: string,
     actor: ChangeActor,
-    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+    event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
   ) => void;
 }
 
@@ -137,6 +138,7 @@ type ChangeEventOverride = {
   id?: string;
   timestamp?: number;
   selection?: SectionChangeEvent['selection'];
+  request?: SectionChangeEvent['request'];
 };
 
 export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirrorEditorProps>(
@@ -274,6 +276,12 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
               : tr.selection?.from !== undefined
                 ? { from: tr.selection.from, to: tr.selection.to }
                 : null,
+          request:
+            overrideEvent?.request !== undefined
+              ? overrideEvent.request
+              : shouldMerge
+                ? last?.request
+                : undefined,
           steps: tr.steps.map((step) => step.toJSON()),
         };
 
@@ -284,6 +292,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
                 timestamp: now,
                 steps: [...(Array.isArray(last.steps) ? last.steps : []), ...nextEvent.steps],
                 selection: nextEvent.selection ?? last.selection ?? null,
+                request: nextEvent.request ?? last.request ?? undefined,
               },
               ...existing.slice(1),
             ]
@@ -512,6 +521,33 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           if (!view) return;
           view.dispatch(view.state.tr.setMeta(selectionLockPluginKey, { type: 'clear' }));
         },
+        focusChangeEvent: (eventId: string | null, selection?: { from: number; to: number } | null) => {
+          const view = viewRef.current;
+          if (!view) return;
+          const tracking = callbacksRef.current.trackChanges;
+          if (!tracking) return;
+
+          let tr = view.state.tr.setMeta(trackChangesPluginKey, { type: 'focus', eventId });
+
+          if (selection && typeof selection.from === 'number' && typeof selection.to === 'number') {
+            const maxPos = view.state.doc.content.size;
+            const from = Math.max(0, Math.min(selection.from, maxPos));
+            const to = Math.max(0, Math.min(selection.to, maxPos));
+            if (from !== to) {
+              tr = tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView();
+            }
+          }
+
+          view.dispatch(tr);
+
+          if (!eventId) return;
+          requestAnimationFrame(() => {
+            const currentView = viewRef.current;
+            if (!currentView) return;
+            const el = currentView.dom.querySelector(`[data-event-id="${eventId}"]`) as HTMLElement | null;
+            el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          });
+        },
         setContent: (nextContent: string) => {
           const view = viewRef.current;
           if (!view) return;
@@ -533,7 +569,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         applyContentReplacement: (
           nextContent: string,
           actor: ChangeActor,
-          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
         ) => {
           const view = viewRef.current;
           if (!view || readOnly) return;
@@ -541,7 +577,12 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, nextDoc.content);
           tr.setMeta('manuscriptActor', actor);
           if (event) {
-            tr.setMeta('manuscriptChangeEvent', { id: event.id, timestamp: event.timestamp, selection: event.selection });
+            tr.setMeta('manuscriptChangeEvent', {
+              id: event.id,
+              timestamp: event.timestamp,
+              selection: event.selection,
+              request: event.request,
+            });
           }
           tr.setMeta(selectionLockPluginKey, { type: 'clear' });
           view.focus();
@@ -550,7 +591,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
         applyLockedSelectionReplacement: (
           text: string,
           actor: ChangeActor,
-          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection'>
+          event?: Pick<SectionChangeEvent, 'id' | 'timestamp' | 'selection' | 'request'>
         ) => {
           const view = viewRef.current;
           if (!view || readOnly) return;
@@ -562,7 +603,12 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
           const tr = view.state.tr.replaceRange(from, to, slice);
           tr.setMeta('manuscriptActor', actor);
           if (event) {
-            tr.setMeta('manuscriptChangeEvent', { id: event.id, timestamp: event.timestamp, selection: event.selection });
+            tr.setMeta('manuscriptChangeEvent', {
+              id: event.id,
+              timestamp: event.timestamp,
+              selection: event.selection,
+              request: event.request,
+            });
           }
           tr.setMeta(selectionLockPluginKey, { type: 'clear' });
           view.focus();

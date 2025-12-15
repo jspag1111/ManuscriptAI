@@ -24,6 +24,11 @@ export interface SectionChangeEvent {
   timestamp: number;
   actor: ChangeActor;
   selection?: { from: number; to: number } | null;
+  /**
+   * For LLM-attributed edits, stores the user-provided request/prompt (kept optional
+   * for backwards compatibility with persisted events).
+   */
+  request?: string | null;
   steps: unknown[];
 }
 

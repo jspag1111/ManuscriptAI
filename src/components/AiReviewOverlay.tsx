@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Check, Sparkles, X } from 'lucide-react';
 import { Button } from './Button';
 import { ChangePanel } from './ChangePanel';
-import { ProseMirrorEditor } from './ProseMirrorEditor';
+import { ProseMirrorEditor, ProseMirrorEditorHandle } from './ProseMirrorEditor';
 import type { ChangeActor, SectionChangeEvent } from '@/types';
 import type { Reference } from '@/types';
 
@@ -31,6 +31,16 @@ export const AiReviewOverlay: React.FC<{
     event.actor.type === 'LLM'
       ? { type: 'LLM', model: event.actor.model }
       : { type: 'USER', userId: event.actor.userId, name: event.actor.name };
+  const editorRef = useRef<ProseMirrorEditorHandle>(null);
+  const [focusedChangeEventId, setFocusedChangeEventId] = useState<string | null>(null);
+  const handleSelectChangeEvent = useCallback((evt: SectionChangeEvent) => {
+    const selection = evt.selection ?? null;
+    setFocusedChangeEventId((current) => {
+      const next = current === evt.id ? null : evt.id;
+      editorRef.current?.focusChangeEvent(next, next ? selection : null);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="absolute inset-0 z-50 bg-white flex flex-col">
@@ -63,6 +73,7 @@ export const AiReviewOverlay: React.FC<{
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-h-0">
           <ProseMirrorEditor
+            ref={editorRef}
             content={previewContent}
             bibliographyOrder={bibliographyOrder}
             references={references}
@@ -80,7 +91,7 @@ export const AiReviewOverlay: React.FC<{
           />
         </div>
         <div className="hidden lg:flex">
-          <ChangePanel events={[event]} />
+          <ChangePanel events={[event]} selectedEventId={focusedChangeEventId} onSelectEvent={handleSelectChangeEvent} />
         </div>
       </div>
     </div>

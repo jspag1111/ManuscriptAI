@@ -52,6 +52,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const [showHighlights, setShowHighlights] = useState(false);
   const [showGenerator, setShowGenerator] = useState(() => (section.content ?? '').trim().length === 0);
   const [showDetails, setShowDetails] = useState(true);
+  const [focusedChangeEventId, setFocusedChangeEventId] = useState<string | null>(null);
 
   const editorRef = useRef<ProseMirrorEditorHandle>(null);
   const { user } = useUser();
@@ -105,6 +106,21 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     editorRef.current?.clearLock();
   }, [showHighlights]);
 
+  useEffect(() => {
+    if (showHighlights) return;
+    setFocusedChangeEventId(null);
+    editorRef.current?.focusChangeEvent(null);
+  }, [showHighlights]);
+
+  const handleSelectChangeEvent = useCallback((event: SectionChangeEvent) => {
+    const selection = event.selection ?? null;
+    setFocusedChangeEventId((current) => {
+      const next = current === event.id ? null : event.id;
+      editorRef.current?.focusChangeEvent(next, next ? selection : null);
+      return next;
+    });
+  }, []);
+
   const handleSave = useCallback(() => {
     const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
     const ensureVersionId = section.currentVersionId || section.id || generateId();
@@ -137,16 +153,18 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     setIsDrafting(true);
     handleSave();
     try {
+      const draftInstruction = 'Draft or improve the section based on the notes.';
       const { text, model } = await generateSectionDraft(
         project,
         { ...section, userNotes: notes, content },
-        'Draft or improve the section based on the notes.'
+        draftInstruction
       );
       const actor: ChangeActor = { type: 'LLM', model };
       const { previewContent, event } = buildReplaceAllAiReview({
         baseContent: content,
         nextContent: text,
         actor,
+        request: `Gemini Drafter\nInstruction: ${draftInstruction}\n\nNotes:\n${notes ?? ''}`.trim(),
       });
       setAiReview({ kind: 'Draft', baseContent: content, actor, event, previewContent });
     } catch (e) {
@@ -276,6 +294,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         to: range.end,
         replacementText: text,
         actor,
+        request: refinePrompt,
       });
 
       setAiReview({
@@ -509,7 +528,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
             </div>
             {showHighlights && !isReviewing && (
               <div className="hidden lg:flex">
-                <ChangePanel events={changeEvents} />
+                <ChangePanel events={changeEvents} selectedEventId={focusedChangeEventId} onSelectEvent={handleSelectChangeEvent} />
               </div>
             )}
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { Bot, User } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Bot, FileText, User, X } from 'lucide-react';
 import type { ChangeActor, SectionChangeEvent } from '@/types';
 import { colorForChangeActorKey } from '@/utils/changeColors';
 
@@ -9,8 +9,13 @@ const actorKey = (actor: ChangeActor) => (actor.type === 'USER' ? `user:${actor.
 
 const actorLabel = (actor: ChangeActor) => (actor.type === 'USER' ? actor.name?.trim() || 'You' : actor.model);
 
-export const ChangePanel: React.FC<{ events: SectionChangeEvent[] }> = ({ events }) => {
+export const ChangePanel: React.FC<{
+  events: SectionChangeEvent[];
+  selectedEventId?: string | null;
+  onSelectEvent?: (event: SectionChangeEvent) => void;
+}> = ({ events, selectedEventId = null, onSelectEvent }) => {
   const rows = useMemo(() => events ?? [], [events]);
+  const [requestModalEvent, setRequestModalEvent] = useState<SectionChangeEvent | null>(null);
 
   return (
     <aside className="w-full lg:w-80 border-l border-slate-200 bg-white/95 flex flex-col">
@@ -35,11 +40,25 @@ export const ChangePanel: React.FC<{ events: SectionChangeEvent[] }> = ({ events
             const range = event.selection ? `${event.selection.from}–${event.selection.to}` : null;
             const ops = Array.isArray(event.steps) ? event.steps.length : 0;
             const icon = event.actor.type === 'LLM' ? <Bot size={14} /> : <User size={14} />;
+            const isSelected = !!selectedEventId && event.id === selectedEventId;
+            const hasRequest = event.actor.type === 'LLM' && typeof event.request === 'string' && event.request.trim().length > 0;
+            const requestPreview = hasRequest ? (event.request as string).trim().replace(/\s+/g, ' ').slice(0, 80) : '';
 
             return (
               <div
                 key={event.id}
-                className="rounded-xl border border-slate-200 bg-white shadow-sm p-3 hover:border-slate-300 transition-colors"
+                onClick={() => onSelectEvent?.(event)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectEvent?.(event);
+                  }
+                }}
+                role={onSelectEvent ? 'button' : undefined}
+                tabIndex={onSelectEvent ? 0 : undefined}
+                className={`w-full text-left rounded-xl border bg-white shadow-sm p-3 transition-colors ${
+                  isSelected ? 'border-slate-400 ring-2 ring-slate-200' : 'border-slate-200 hover:border-slate-300'
+                } ${onSelectEvent ? 'cursor-pointer' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex items-start gap-2">
@@ -67,6 +86,26 @@ export const ChangePanel: React.FC<{ events: SectionChangeEvent[] }> = ({ events
                         <span>{ops} step{ops === 1 ? '' : 's'}</span>
                         {range && <span>pos {range}</span>}
                       </div>
+                      {hasRequest && (
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-slate-500 truncate" title={event.request as string}>
+                            Request: {requestPreview}
+                            {requestPreview.length >= 80 ? '…' : ''}
+                          </span>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRequestModalEvent(event);
+                            }}
+                            title="View the request/prompt used for this LLM edit"
+                          >
+                            <FileText size={12} />
+                            View
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -75,7 +114,42 @@ export const ChangePanel: React.FC<{ events: SectionChangeEvent[] }> = ({ events
           })
         )}
       </div>
+
+      {requestModalEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px] p-4"
+          onClick={() => setRequestModalEvent(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 border-b border-slate-200 flex justify-between items-start gap-3 bg-slate-50 rounded-t-lg">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-800 text-sm truncate">LLM request</h3>
+                <p className="text-[11px] text-slate-500 truncate">
+                  {actorLabel(requestModalEvent.actor)} • {new Date(requestModalEvent.timestamp).toLocaleString()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRequestModalEvent(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-sm text-slate-800 font-sans">
+                {(requestModalEvent.request || '').trim()}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };
-

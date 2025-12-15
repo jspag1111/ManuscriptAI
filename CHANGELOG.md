@@ -1,3 +1,7 @@
+## 2025-12-15 15:06 EST
+- (Commit: codex/change-panel-focus-and-llm-request) Added click-to-focus in the Edits panel so selecting an edit highlights (and scrolls to) the exact tracked-change spans it produced.
+- Added optional persisted LLM request text on tracked change events, with a compact preview + modal viewer in the Edits panel.
+
 ## 2025-12-14 01:45 EST
 - (Commit: codex/prosemirror-ai-selection-refine) Fixed click-drag selection + AI refine in the ProseMirror editor to preserve multi-paragraph selections and citation atoms by applying replacements as ProseMirror slices (not raw text insertion).
 

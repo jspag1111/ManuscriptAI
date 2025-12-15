@@ -67,6 +67,7 @@ git commit -m "codex/fix-clerk-auth-redirect"
 - **Vercel:** Ensure builds succeed; respect env vars and runtime constraints.
 - **Turso:** Parameterized queries only; handle nulls; follow existing schema/migration patterns.
 - **Clerk:** Treat auth as security-critical; use official components/hooks; protect routes properly.
+- **ProseMirror** Ensure document schema integrity and follow existing editor patterns. Use official docs for guidance.
 
 Docs must be consulted for any changes in these areas.
 
