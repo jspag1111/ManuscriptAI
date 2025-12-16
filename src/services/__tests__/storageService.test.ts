@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '../storageService';
-import type { Project } from '@/types';
+import type { GeneratedFigure, Project } from '@/types';
 
 const createFetchResponse = (data: any, ok = true): Response => ({
   ok,
@@ -44,7 +44,17 @@ describe('storageService', () => {
         { id: 'section-1', title: 'Intro', content: 'Body', userNotes: 'Notes', versions: [], lastModified: 1 }
       ],
       figures: [
-        { id: 'fig-1', base64: 'data:image/png;base64,abc', createdAt: 1 }
+        {
+          id: 'fig-1',
+          base64: 'data:image/png;base64,abc',
+          createdAt: 1,
+          title: '',
+          label: '',
+          description: '',
+          includeInWordCount: false,
+          figureType: 'figure',
+          sourceType: 'AI',
+        },
       ]
     };
 

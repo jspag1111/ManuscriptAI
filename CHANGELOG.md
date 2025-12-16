@@ -1,3 +1,9 @@
+## 2025-12-16 04:55 UTC
+- (Commit: codex/comment-actions-order) Changed comment card actions to place the trashcan to the far right, with “Address with AI” immediately to its left.
+
+## 2025-12-16 04:52 UTC
+- (Commit: codex/delete-comments) Added a trashcan delete action for your own comment threads in the Comments panel (with a confirmation prompt).
+
 ## 2025-12-16 04:24 UTC
 - (Commit: codex/full-manuscript-view) Added a Full Manuscript workspace view that lets you review/edit every section in one scroll, with comments/AI edits/tracked changes persisting on their original sections.
 

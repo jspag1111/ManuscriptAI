@@ -606,6 +606,16 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     [commentThreads, handleSave, setCommentThreadsSynced]
   );
 
+  const handleDeleteCommentThread = useCallback(
+    (threadId: string) => {
+      const nextThreads = (commentThreads ?? []).filter((thread) => thread.id !== threadId);
+      setCommentThreadsSynced(nextThreads);
+      setSelectedCommentThreadId((current) => (current === threadId ? null : current));
+      handleSave({ commentThreads: nextThreads });
+    },
+    [commentThreads, handleSave, setCommentThreadsSynced]
+  );
+
   const handleCloseCommentsPanel = useCallback(() => {
     setShowCommentsPanel(false);
     setSelectedCommentThreadId(null);
@@ -922,6 +932,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   onReply={handleReplyToComment}
                   onResolve={handleResolveComment}
                   onReopen={handleReopenComment}
+                  onDeleteThread={handleDeleteCommentThread}
                   onClose={handleCloseCommentsPanel}
                   onAddressWithAi={handleAddressCommentWithAi}
                   aiBusy={isAddressingComment}
@@ -951,6 +962,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   onReply={handleReplyToComment}
                   onResolve={handleResolveComment}
                   onReopen={handleReopenComment}
+                  onDeleteThread={handleDeleteCommentThread}
                   onClose={handleCloseCommentsPanel}
                   onAddressWithAi={handleAddressCommentWithAi}
                   aiBusy={isAddressingComment}

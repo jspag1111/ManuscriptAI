@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Bot, CheckSquare2, MessageSquareText, Send, Square, X } from 'lucide-react';
+import { Bot, CheckSquare2, MessageSquareText, Send, Square, Trash2, X } from 'lucide-react';
 import type { SectionCommentThread } from '@/types';
 
 export type CommentPanelFilter = 'ALL' | 'OPEN' | 'RESOLVED';
@@ -30,6 +30,7 @@ export const CommentPanel: React.FC<{
   onReply: (threadId: string, text: string) => void;
   onResolve: (threadId: string) => void;
   onReopen: (threadId: string) => void;
+  onDeleteThread?: (threadId: string) => void;
   onClose: () => void;
   onAddressWithAi?: (threadId: string) => void;
   aiBusy?: boolean;
@@ -43,6 +44,7 @@ export const CommentPanel: React.FC<{
   onReply,
   onResolve,
   onReopen,
+  onDeleteThread,
   onClose,
   onAddressWithAi,
   aiBusy = false,
@@ -119,78 +121,96 @@ export const CommentPanel: React.FC<{
             const first = thread.messages?.[0];
             const title = first?.content?.trim() || 'Comment';
             const isResolved = thread.status === 'RESOLVED';
+            const canDelete = !!onDeleteThread && thread.createdBy.userId === currentUserId;
 
-	            return (
-	              <div
-	                key={thread.id}
-	                className={`rounded-2xl border bg-white shadow-sm transition-all ${
-	                  isSelected
-	                    ? 'border-amber-300 ring-2 ring-amber-100'
-	                    : 'border-slate-200/80 hover:border-slate-300 hover:shadow-md'
-	                }`}
-	              >
-	                <div className="flex items-start gap-3 p-3">
-	                  <button
-	                    type="button"
-	                    role="checkbox"
-	                    aria-checked={isResolved}
-	                    onClick={(e) => {
-	                      e.stopPropagation();
-	                      if (isResolved) onReopen(thread.id);
-	                      else onResolve(thread.id);
-	                    }}
-	                    className={`mt-0.5 rounded-md p-1 transition-colors ${
-	                      isResolved ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'
-	                    }`}
-	                    title={isResolved ? 'Mark as open' : 'Mark as resolved'}
-	                  >
-	                    {isResolved ? <CheckSquare2 size={18} /> : <Square size={18} />}
-	                  </button>
+            return (
+              <div
+                key={thread.id}
+                className={`rounded-2xl border bg-white shadow-sm transition-all ${
+                  isSelected
+                    ? 'border-amber-300 ring-2 ring-amber-100'
+                    : 'border-slate-200/80 hover:border-slate-300 hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-start gap-3 p-3">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={isResolved}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isResolved) onReopen(thread.id);
+                      else onResolve(thread.id);
+                    }}
+                    className={`mt-0.5 rounded-md p-1 transition-colors ${
+                      isResolved ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'
+                    }`}
+                    title={isResolved ? 'Mark as open' : 'Mark as resolved'}
+                  >
+                    {isResolved ? <CheckSquare2 size={18} /> : <Square size={18} />}
+                  </button>
 
-	                  <div className="flex-1 min-w-0 flex items-start gap-2">
-	                    <button
-	                      type="button"
-	                      onClick={() => onSelectThread(isSelected ? null : thread.id)}
-	                      className="flex-1 min-w-0 text-left"
-	                    >
-	                      <div className="min-w-0">
-	                        <div className="flex items-center gap-2 min-w-0">
-	                          <span className="text-[11px] text-slate-400 truncate">
-	                            {displayName(thread, currentUserId)} • {formatTimestamp(thread.createdAt)}
-	                          </span>
-	                          {isResolved && <span className="text-[11px] text-emerald-700 font-semibold">Resolved</span>}
-	                        </div>
-	                        <p
-	                          className={`mt-2 text-sm font-semibold line-clamp-2 ${
-	                            isResolved ? 'text-slate-500' : 'text-slate-900'
-	                          }`}
-	                        >
-	                          {title}
-	                        </p>
-	                        {thread.anchor?.orphaned && (
-	                          <p className="mt-2 text-[11px] text-amber-700">
-	                            Anchor moved/removed by edits — this comment may not jump to the original text.
-	                          </p>
-	                        )}
-	                      </div>
-	                    </button>
+                  <div className="flex-1 min-w-0 flex items-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelectThread(isSelected ? null : thread.id)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] text-slate-400 truncate">
+                            {displayName(thread, currentUserId)} • {formatTimestamp(thread.createdAt)}
+                          </span>
+                          {isResolved && <span className="text-[11px] text-emerald-700 font-semibold">Resolved</span>}
+                        </div>
+                        <p
+                          className={`mt-2 text-sm font-semibold line-clamp-2 ${
+                            isResolved ? 'text-slate-500' : 'text-slate-900'
+                          }`}
+                        >
+                          {title}
+                        </p>
+                        {thread.anchor?.orphaned && (
+                          <p className="mt-2 text-[11px] text-amber-700">
+                            Anchor moved/removed by edits — this comment may not jump to the original text.
+                          </p>
+                        )}
+                      </div>
+                    </button>
 
-	                    {onAddressWithAi && (
-	                      <button
-	                        type="button"
-	                        disabled={isResolved || aiBusy}
-	                        onClick={() => {
-	                          if (!isSelected) onSelectThread(thread.id);
-	                          onAddressWithAi(thread.id);
-	                        }}
-	                        className="shrink-0 mt-0.5 text-slate-400 hover:text-blue-700 p-1.5 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
-	                        title={isResolved ? 'Reopen to address with AI' : 'Address with AI'}
-	                      >
-	                        <Bot size={16} className={aiBusy ? 'animate-pulse' : undefined} />
-	                      </button>
-	                    )}
-	                  </div>
-	                </div>
+                    <div className="shrink-0 flex items-center gap-1">
+                      {onAddressWithAi && (
+                        <button
+                          type="button"
+                          disabled={isResolved || aiBusy}
+                          onClick={() => {
+                            if (!isSelected) onSelectThread(thread.id);
+                            onAddressWithAi(thread.id);
+                          }}
+                          className="mt-0.5 text-slate-400 hover:text-blue-700 p-1.5 rounded hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                          title={isResolved ? 'Reopen to address with AI' : 'Address with AI'}
+                        >
+                          <Bot size={16} className={aiBusy ? 'animate-pulse' : undefined} />
+                        </button>
+                      )}
+
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!confirm('Delete this comment thread? This cannot be undone.')) return;
+                            onDeleteThread?.(thread.id);
+                          }}
+                          className="mt-0.5 text-slate-400 hover:text-rose-700 p-1.5 rounded hover:bg-slate-100 transition-colors"
+                          title="Delete comment"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 {isSelected && (
                   <div className="border-t border-slate-100/80 px-3 pb-3">
