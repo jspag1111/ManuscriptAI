@@ -1,3 +1,6 @@
+## 2025-12-15 22:19 EST
+- (Commit: codex/comment-bubbles-ux) Changed comment rendering so comment ranges are only highlighted when the Comments panel is open; when closed, show small margin bubbles on the referenced line that can be clicked to open/select the thread and jump to the text.
+
 ## 2025-12-15 16:12 EST
 - (Commit: codex/inline-comments-panel) Added inline text comments with a selection toolbar (AI + comment actions), a right-side Comments panel (with mobile drawer), threaded replies, resolve/reopen, and Open/Resolved/All filters.
 - Added comment highlighting in the editor plus comment-linked tracked-edit attribution (Change panel shows a Comment badge when an edit is related to a comment).

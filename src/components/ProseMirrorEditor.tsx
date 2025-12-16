@@ -9,7 +9,7 @@ import { keymap } from 'prosemirror-keymap';
 import { baseKeymap } from 'prosemirror-commands';
 import { manuscriptSchema } from '@/lib/prosemirror/schema';
 import { contentToProseMirrorDoc, proseMirrorDocToContent } from '@/lib/prosemirror/serialization';
-import { commentHighlightsPlugin } from '@/lib/prosemirror/plugins/comments';
+import { commentHighlightsPlugin, type CommentViewMode } from '@/lib/prosemirror/plugins/comments';
 import { placeholderPlugin } from '@/lib/prosemirror/plugins/placeholder';
 import { selectionLockPlugin, selectionLockPluginKey } from '@/lib/prosemirror/plugins/selectionLock';
 import { trackChangesPlugin, trackChangesPluginKey, type TrackChangeData } from '@/lib/prosemirror/plugins/trackChanges';
@@ -23,6 +23,7 @@ export interface ProseMirrorEditorHandle {
   insertCitation: (ids: string[]) => void;
   lockSelection: () => string | null;
   highlightRange: (range: { from: number; to: number } | null) => void;
+  scrollToRange: (range: { from: number; to: number } | null) => void;
   replaceLockedSelection: (text: string) => string;
   clearLock: () => void;
   getTextInRange: (range: { from: number; to: number }) => string;
@@ -55,6 +56,8 @@ interface ProseMirrorEditorProps {
   comments?: {
     threads: SectionCommentThread[];
     selectedThreadId?: string | null;
+    viewMode?: CommentViewMode;
+    onSelectThread?: (threadId: string) => void;
     onThreadsChange?: (next: SectionCommentThread[]) => void;
   };
   trackChanges?: {
@@ -183,6 +186,8 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
     const commentConfigRef = useRef({
       threads: comments?.threads ?? [],
       selectedThreadId: comments?.selectedThreadId ?? null,
+      viewMode: comments?.viewMode ?? 'BUBBLES',
+      onSelectThread: comments?.onSelectThread,
     });
     const callbacksRef = useRef({
       content,
@@ -388,6 +393,8 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
             commentConfigRef.current = {
               threads: nextThreads,
               selectedThreadId: commentConfigRef.current.selectedThreadId,
+              viewMode: commentConfigRef.current.viewMode,
+              onSelectThread: commentConfigRef.current.onSelectThread,
             };
             commentCallbacks.onThreadsChange(nextThreads);
           }
@@ -423,11 +430,13 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
       commentConfigRef.current = {
         threads: comments?.threads ?? [],
         selectedThreadId: comments?.selectedThreadId ?? null,
+        viewMode: comments?.viewMode ?? 'BUBBLES',
+        onSelectThread: comments?.onSelectThread,
       };
       const view = viewRef.current;
       if (!view) return;
       view.updateState(view.state);
-    }, [comments?.threads, comments?.selectedThreadId]);
+    }, [comments?.threads, comments?.selectedThreadId, comments?.viewMode, comments?.onSelectThread]);
 
     useEffect(() => {
       eventsRef.current = trackChanges?.events ?? [];
@@ -608,6 +617,17 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
             .setSelection(TextSelection.create(view.state.doc, from, to))
             .scrollIntoView();
           view.dispatch(tr);
+        },
+        scrollToRange: (range) => {
+          const view = viewRef.current;
+          if (!view || !range) return;
+          const maxPos = view.state.doc.content.size;
+          const from = Math.max(0, Math.min(range.from, maxPos));
+          const coords = view.coordsAtPos(from);
+          const rect = view.dom.getBoundingClientRect();
+          const top = coords.top - rect.top + view.dom.scrollTop;
+          const target = Math.max(0, top - view.dom.clientHeight / 2);
+          view.dom.scrollTo({ top: target, behavior: 'smooth' });
         },
         replaceLockedSelection: (text: string) => {
           const view = viewRef.current;

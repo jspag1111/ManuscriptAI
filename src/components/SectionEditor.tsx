@@ -433,7 +433,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     setCommentDraft('');
     setPopupPosition(null);
     setSelectionData(null);
-    editorRef.current?.highlightRange({ from: range.start, to: range.end });
+    editorRef.current?.scrollToRange({ from: range.start, to: range.end });
   };
 
   const handleRefine = async () => {
@@ -530,13 +530,12 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       setCommentDraft('');
       setSelectedCommentThreadId(threadId);
       if (!threadId) {
-        editorRef.current?.highlightRange(null);
         return;
       }
       const thread = (commentThreads ?? []).find((t) => t.id === threadId) ?? null;
       const anchor = thread?.anchor;
       if (!anchor || anchor.orphaned) return;
-      editorRef.current?.highlightRange({ from: anchor.from, to: anchor.to });
+      editorRef.current?.scrollToRange({ from: anchor.from, to: anchor.to });
     },
     [commentThreads]
   );
@@ -608,7 +607,6 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const handleCloseCommentsPanel = useCallback(() => {
     setShowCommentsPanel(false);
     setSelectedCommentThreadId(null);
-    editorRef.current?.highlightRange(null);
   }, []);
 
   const handleAddressCommentWithAi = useCallback(
@@ -634,7 +632,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         setShowCommentsPanel(true);
         setSelectedCommentThreadId(threadId);
 
-        editorRef.current?.highlightRange({ from: anchor.from, to: anchor.to });
+        editorRef.current?.scrollToRange({ from: anchor.from, to: anchor.to });
 
         const selectedText = editorRef.current?.getTextInRange({ from: anchor.from, to: anchor.to }) || anchor.text;
         if (!selectedText.trim()) {
@@ -880,6 +878,16 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 comments={{
                   threads: commentThreads,
                   selectedThreadId: selectedCommentThreadId,
+                  viewMode: showCommentsPanel ? 'HIGHLIGHTS' : 'BUBBLES',
+                  onSelectThread: (threadId) => {
+                    const thread = (commentThreadsRef.current ?? []).find((t) => t.id === threadId) ?? null;
+                    if (thread && commentFilter !== 'ALL') {
+                      if (commentFilter === 'OPEN' && thread.status === 'RESOLVED') setCommentFilter('ALL');
+                      if (commentFilter === 'RESOLVED' && thread.status !== 'RESOLVED') setCommentFilter('ALL');
+                    }
+                    setShowCommentsPanel(true);
+                    handleSelectCommentThread(threadId);
+                  },
                   onThreadsChange: setCommentThreadsSynced,
                 }}
                 trackChanges={{
