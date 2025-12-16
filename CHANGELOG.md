@@ -1,3 +1,6 @@
+## 2025-12-15 22:27 EST
+- (Commit: codex/fix-comment-bubble-init-crash) Fixed a runtime crash when opening projects where comment bubble widgets tried to compute screen coordinates before ProseMirror finished initializing its DOM view.
+
 ## 2025-12-15 22:19 EST
 - (Commit: codex/comment-bubbles-ux) Changed comment rendering so comment ranges are only highlighted when the Comments panel is open; when closed, show small margin bubbles on the referenced line that can be clicked to open/select the thread and jump to the text.
 

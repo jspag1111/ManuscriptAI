@@ -41,15 +41,10 @@ const createBubbleDom = (
     </svg>
   `.trim();
 
-  const position = () => {
-    const coords = view.coordsAtPos(pos);
-    const rect = view.dom.getBoundingClientRect();
-    const center = (coords.top + coords.bottom) / 2;
-    const top = center - rect.top + view.dom.scrollTop;
-    button.style.top = `${Math.max(0, top)}px`;
-  };
-
-  position();
+  // NOTE: Don't call view.coordsAtPos here. This DOM is created while ProseMirror is building
+  // its initial doc view, and coordsAtPos can crash before view.docView is initialized.
+  // Positioning is handled by the plugin view's update() hook.
+  button.style.top = '0px';
 
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -137,6 +132,8 @@ export const commentHighlightsPlugin = (configRef: { current: CommentHighlightCo
     },
     view(editorView) {
       const reposition = () => {
+        const docView = (editorView as any)?.docView;
+        if (!docView || typeof docView.domFromPos !== 'function') return;
         const { threads, viewMode } = configRef.current;
         const bubbles = editorView.dom.querySelectorAll<HTMLElement>('.pm-comment-bubble[data-comment-id]');
         if (!bubbles.length) return;
@@ -153,7 +150,13 @@ export const commentHighlightsPlugin = (configRef: { current: CommentHighlightCo
           }
           bubble.style.display = '';
           const pos = clampPos(anchor.from, maxPos);
-          const coords = editorView.coordsAtPos(pos);
+          let coords: { top: number; bottom: number } | null = null;
+          try {
+            coords = editorView.coordsAtPos(pos);
+          } catch {
+            coords = null;
+          }
+          if (!coords) continue;
           const center = (coords.top + coords.bottom) / 2;
           const top = center - rect.top + editorView.dom.scrollTop;
           bubble.style.top = `${Math.max(0, top)}px`;
