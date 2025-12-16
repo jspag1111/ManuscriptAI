@@ -1,3 +1,6 @@
+## 2025-12-16 04:24 UTC
+- (Commit: codex/full-manuscript-view) Added a Full Manuscript workspace view that lets you review/edit every section in one scroll, with comments/AI edits/tracked changes persisting on their original sections.
+
 ## 2025-12-16 04:08 UTC
 - (Commit: codex/fix-comment-panel-nested-buttons) Fixed a Comments panel hydration error by removing nested `<button>` elements in the thread list cards.
 

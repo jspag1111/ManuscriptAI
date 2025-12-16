@@ -18,13 +18,15 @@ interface SectionEditorProps {
   project: Project;
   onUpdateSection: (s: Section) => void;
   onViewHistory: () => void;
+  defaultShowDetails?: boolean;
 }
 
 export const SectionEditor: React.FC<SectionEditorProps> = ({
   section,
   project,
   onUpdateSection,
-  onViewHistory
+  onViewHistory,
+  defaultShowDetails = true,
 }) => {
   const [content, setContent] = useState(section.content);
   const [notes, setNotes] = useState(section.userNotes);
@@ -56,7 +58,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const [showCitations, setShowCitations] = useState(false);
   const [showHighlights, setShowHighlights] = useState(false);
   const [showGenerator, setShowGenerator] = useState(() => (section.content ?? '').trim().length === 0);
-  const [showDetails, setShowDetails] = useState(true);
+  const [showDetails, setShowDetails] = useState(defaultShowDetails);
   const [focusedChangeEventId, setFocusedChangeEventId] = useState<string | null>(null);
 
   const editorRef = useRef<ProseMirrorEditorHandle>(null);

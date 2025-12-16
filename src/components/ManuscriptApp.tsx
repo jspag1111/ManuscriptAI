@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_SECTIONS } from '@/constants';
 import { Button } from '@/components/Button';
 import { FigureGenerator } from '@/components/FigureGenerator';
+import { FullManuscriptView } from '@/components/FullManuscriptView';
 import { HistoryViewer } from '@/components/HistoryViewer';
 import { MetadataEditor } from '@/components/MetadataEditor';
 import { ReferenceManager } from '@/components/ReferenceManager';
@@ -476,6 +477,15 @@ const ManuscriptApp: React.FC = () => {
               <div className="space-y-3">
                 <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Manuscript Info</h2>
                 <button
+                  onClick={() => setActiveTab(SectionView.MANUSCRIPT)}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${activeTab === SectionView.MANUSCRIPT
+                      ? 'bg-blue-600 text-white shadow-blue-200'
+                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                >
+                  <FileText size={16} className="mr-2" /> Full Manuscript
+                </button>
+                <button
                   onClick={() => setActiveTab(SectionView.METADATA)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${activeTab === SectionView.METADATA
                       ? 'bg-blue-600 text-white shadow-blue-200'
@@ -576,8 +586,8 @@ const ManuscriptApp: React.FC = () => {
                     <ImageIcon size={16} className="mr-2" /> Figures
                   </button>
                   <button
-                    onClick={() => setActiveTab('REFERENCES' as any)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${(activeTab as any) === 'REFERENCES'
+                    onClick={() => setActiveTab(SectionView.REFERENCES)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${activeTab === SectionView.REFERENCES
                         ? 'bg-blue-100 text-blue-700'
                         : 'text-slate-700 hover:bg-slate-50'
                       }`}
@@ -722,7 +732,7 @@ const ManuscriptApp: React.FC = () => {
               />
             )}
 
-            {(activeTab as any) === 'REFERENCES' && (
+            {activeTab === SectionView.REFERENCES && (
               <ReferenceManager
                 project={currentProject}
                 onUpdateProject={handleUpdateProject}
@@ -733,6 +743,17 @@ const ManuscriptApp: React.FC = () => {
               <MetadataEditor
                 project={currentProject}
                 onUpdateProject={handleUpdateProject}
+              />
+            )}
+
+            {activeTab === SectionView.MANUSCRIPT && (
+              <FullManuscriptView
+                project={currentProject}
+                onUpdateSection={handleUpdateSection}
+                onOpenSection={(sectionId, nextView) => {
+                  setActiveSectionId(sectionId);
+                  setActiveTab(nextView ?? SectionView.EDITOR);
+                }}
               />
             )}
           </div>
