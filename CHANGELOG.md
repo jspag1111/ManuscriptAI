@@ -1,3 +1,6 @@
+## 2025-12-15 22:39 EST
+- (Commit: codex/remove-comment-bubbles) Removed the in-editor comment bubble markers; comments now only render as subtle text highlights when the Comments panel is open (no in-text comment visuals when the panel is closed).
+
 ## 2025-12-15 22:27 EST
 - (Commit: codex/fix-comment-bubble-init-crash) Fixed a runtime crash when opening projects where comment bubble widgets tried to compute screen coordinates before ProseMirror finished initializing its DOM view.
 

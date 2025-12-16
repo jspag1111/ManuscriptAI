@@ -878,15 +878,14 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 comments={{
                   threads: commentThreads,
                   selectedThreadId: selectedCommentThreadId,
-                  viewMode: showCommentsPanel ? 'HIGHLIGHTS' : 'BUBBLES',
+                  viewMode: showCommentsPanel ? 'HIGHLIGHTS' : 'NONE',
                   onSelectThread: (threadId) => {
                     const thread = (commentThreadsRef.current ?? []).find((t) => t.id === threadId) ?? null;
                     if (thread && commentFilter !== 'ALL') {
                       if (commentFilter === 'OPEN' && thread.status === 'RESOLVED') setCommentFilter('ALL');
                       if (commentFilter === 'RESOLVED' && thread.status !== 'RESOLVED') setCommentFilter('ALL');
                     }
-                    setShowCommentsPanel(true);
-                    handleSelectCommentThread(threadId);
+                    setSelectedCommentThreadId(threadId);
                   },
                   onThreadsChange: setCommentThreadsSynced,
                 }}

@@ -186,7 +186,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
     const commentConfigRef = useRef({
       threads: comments?.threads ?? [],
       selectedThreadId: comments?.selectedThreadId ?? null,
-      viewMode: comments?.viewMode ?? 'BUBBLES',
+      viewMode: comments?.viewMode ?? 'NONE',
       onSelectThread: comments?.onSelectThread,
     });
     const callbacksRef = useRef({
@@ -430,7 +430,7 @@ export const ProseMirrorEditor = forwardRef<ProseMirrorEditorHandle, ProseMirror
       commentConfigRef.current = {
         threads: comments?.threads ?? [],
         selectedThreadId: comments?.selectedThreadId ?? null,
-        viewMode: comments?.viewMode ?? 'BUBBLES',
+        viewMode: comments?.viewMode ?? 'NONE',
         onSelectThread: comments?.onSelectThread,
       };
       const view = viewRef.current;

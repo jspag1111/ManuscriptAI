@@ -1,11 +1,11 @@
 import { Plugin, PluginKey } from 'prosemirror-state';
-import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
+import { Decoration, DecorationSet } from 'prosemirror-view';
 import type { Node as ProseMirrorNode } from 'prosemirror-model';
 import type { SectionCommentThread } from '@/types';
 
 export const commentHighlightsPluginKey = new PluginKey('commentHighlights');
 
-export type CommentViewMode = 'BUBBLES' | 'HIGHLIGHTS';
+export type CommentViewMode = 'NONE' | 'HIGHLIGHTS';
 
 type CommentHighlightConfig = {
   threads: SectionCommentThread[];
@@ -19,50 +19,13 @@ const clampPos = (pos: number, maxPos: number) => Math.max(0, Math.min(pos, maxP
 const statusClassForThread = (thread: SectionCommentThread) =>
   thread.status === 'RESOLVED' ? 'pm-comment-resolved' : 'pm-comment-open';
 
-const bubbleClassForThread = (thread: SectionCommentThread) =>
-  thread.status === 'RESOLVED' ? 'pm-comment-bubble-resolved' : 'pm-comment-bubble-open';
-
-const createBubbleDom = (
-  view: EditorView,
-  pos: number,
-  thread: SectionCommentThread,
-  configRef: { current: CommentHighlightConfig }
-) => {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `pm-comment-bubble ${bubbleClassForThread(thread)}`.trim();
-  button.dataset.commentId = thread.id;
-  const preview = (thread.messages?.[0]?.content || 'Comment').trim().replace(/\s+/g, ' ');
-  button.title = preview.length > 120 ? `${preview.slice(0, 120)}…` : preview;
-  button.setAttribute('aria-label', 'Open comment');
-  button.innerHTML = `
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
-    </svg>
-  `.trim();
-
-  // NOTE: Don't call view.coordsAtPos here. This DOM is created while ProseMirror is building
-  // its initial doc view, and coordsAtPos can crash before view.docView is initialized.
-  // Positioning is handled by the plugin view's update() hook.
-  button.style.top = '0px';
-
-  button.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    configRef.current.onSelectThread?.(thread.id);
-  });
-
-  return button;
-};
-
 const buildDecorations = (doc: ProseMirrorNode, configRef: { current: CommentHighlightConfig }) => {
   const { threads, selectedThreadId, viewMode } = configRef.current;
+  if (viewMode !== 'HIGHLIGHTS') return null;
   if (!Array.isArray(threads) || threads.length === 0) return null;
 
   const maxPos = doc.content.size;
   const decorations: Decoration[] = [];
-
-  const selectedThread = selectedThreadId ? threads.find((t) => t.id === selectedThreadId) ?? null : null;
 
   const addInlineHighlight = (thread: SectionCommentThread, isSelected: boolean) => {
     const anchor = thread?.anchor;
@@ -80,31 +43,8 @@ const buildDecorations = (doc: ProseMirrorNode, configRef: { current: CommentHig
     );
   };
 
-  if (viewMode === 'HIGHLIGHTS') {
-    for (const thread of threads) {
-      addInlineHighlight(thread, !!selectedThreadId && thread.id === selectedThreadId);
-    }
-  } else {
-    if (selectedThread) {
-      addInlineHighlight(selectedThread, true);
-    }
-    for (const thread of threads) {
-      const anchor = thread?.anchor;
-      if (!anchor || anchor.orphaned) continue;
-      const from = clampPos(anchor.from, maxPos);
-      if (from < 0 || from > maxPos) continue;
-      decorations.push(
-        Decoration.widget(
-          from,
-          (view) => createBubbleDom(view, from, thread, configRef),
-          {
-            key: `comment-bubble:${thread.id}`,
-            side: 1,
-            stopEvent: () => true,
-          }
-        )
-      );
-    }
+  for (const thread of threads) {
+    addInlineHighlight(thread, !!selectedThreadId && thread.id === selectedThreadId);
   }
 
   if (decorations.length === 0) return null;
@@ -129,51 +69,5 @@ export const commentHighlightsPlugin = (configRef: { current: CommentHighlightCo
         configRef.current.onSelectThread?.(threadId);
         return true;
       },
-    },
-    view(editorView) {
-      const reposition = () => {
-        const docView = (editorView as any)?.docView;
-        if (!docView || typeof docView.domFromPos !== 'function') return;
-        const { threads, viewMode } = configRef.current;
-        const bubbles = editorView.dom.querySelectorAll<HTMLElement>('.pm-comment-bubble[data-comment-id]');
-        if (!bubbles.length) return;
-        const rect = editorView.dom.getBoundingClientRect();
-        const maxPos = editorView.state.doc.content.size;
-
-        for (const bubble of bubbles) {
-          const id = bubble.dataset.commentId;
-          const thread = id ? threads.find((t) => t.id === id) ?? null : null;
-          const anchor = thread?.anchor;
-          if (!thread || viewMode !== 'BUBBLES' || !anchor || anchor.orphaned) {
-            bubble.style.display = 'none';
-            continue;
-          }
-          bubble.style.display = '';
-          const pos = clampPos(anchor.from, maxPos);
-          let coords: { top: number; bottom: number } | null = null;
-          try {
-            coords = editorView.coordsAtPos(pos);
-          } catch {
-            coords = null;
-          }
-          if (!coords) continue;
-          const center = (coords.top + coords.bottom) / 2;
-          const top = center - rect.top + editorView.dom.scrollTop;
-          bubble.style.top = `${Math.max(0, top)}px`;
-        }
-      };
-
-      const onResize = () => reposition();
-      const resizeObserver = new ResizeObserver(onResize);
-      resizeObserver.observe(editorView.dom);
-
-      return {
-        update() {
-          reposition();
-        },
-        destroy() {
-          resizeObserver.disconnect();
-        },
-      };
     },
   });
