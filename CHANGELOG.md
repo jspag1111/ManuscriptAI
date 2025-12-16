@@ -1,3 +1,12 @@
+## 2025-12-16 04:08 UTC
+- (Commit: codex/fix-comment-panel-nested-buttons) Fixed a Comments panel hydration error by removing nested `<button>` elements in the thread list cards.
+
+## 2025-12-16 04:03 UTC
+- (Commit: codex/comment-panel-ui-polish-followup) Comments panel follow-up: removed the highlighted-text excerpt from thread cards and moved “Address with AI” to an icon button on each comment card.
+
+## 2025-12-16 03:54 UTC
+- (Commit: codex/comment-panel-ui-polish) Refined the Comments panel UI: removed the “On:” label, replaced bulky Open/Resolve controls with a compact checkbox-style toggle, moved “Address with AI” to a header icon action, and modernized comment card styling.
+
 ## 2025-12-15 22:39 EST
 - (Commit: codex/remove-comment-bubbles) Removed the in-editor comment bubble markers; comments now only render as subtle text highlights when the Comments panel is open (no in-text comment visuals when the panel is closed).
 
