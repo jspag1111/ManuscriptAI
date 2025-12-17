@@ -1,3 +1,6 @@
+## 2025-12-17 16:52 UTC
+- (Commit: codex/update-gemini-flash) Swapped Gemini text models to default to gemini-3-flash-preview with environment overrides for easy future model changes.
+
 ## 2025-12-16 04:55 UTC
 - (Commit: codex/comment-actions-order) Changed comment card actions to place the trashcan to the far right, with “Address with AI” immediately to its left.
 
