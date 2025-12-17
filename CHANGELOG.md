@@ -1,3 +1,6 @@
+## 2025-12-17 21:27 UTC
+- (Commit: codex/add-unit-tests) Added unit tests for Utilities (`src/utils`) and ProseMirror Serialization (`src/lib/prosemirror/serialization.ts`), creating a foundation for iterative test generation.
+
 ## 2025-12-17 16:52 UTC
 - (Commit: codex/update-gemini-flash) Swapped Gemini text models to default to gemini-3-flash-preview with environment overrides for easy future model changes.
 
