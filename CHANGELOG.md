@@ -1,3 +1,6 @@
+## 2025-12-17 16:52 UTC
+- (Commit: codex/update-gemini-flash) Swapped Gemini text models to default to gemini-3-flash-preview with environment overrides for easy future model changes.
+
 ## 2025-12-16 05:42 UTC
 - (Commit: codex/discover-agent-error-surface) Fixed Discover agent failures to return and display the underlying server error (instead of a generic “Discover agent failed”), and added a one-step JSON-repair retry for stricter LLM JSON outputs.
 

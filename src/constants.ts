@@ -7,6 +7,20 @@ export const DEFAULT_SECTIONS = [
   { title: 'Conclusion', defaultNotes: 'Final thoughts and future directions...' },
 ];
 
-export const MODEL_TEXT_FAST = 'gemini-2.5-flash';
-export const MODEL_TEXT_QUALITY = 'gemini-2.5-pro';
-export const MODEL_IMAGE = 'gemini-2.5-flash-image';
+const getEnvModel = (envVar: string, fallback: string) =>
+  process.env[envVar] ?? fallback;
+
+export const MODEL_TEXT_FAST = getEnvModel(
+  'NEXT_PUBLIC_GEMINI_MODEL_TEXT_FAST',
+  'gemini-3-flash-preview'
+);
+
+export const MODEL_TEXT_QUALITY = getEnvModel(
+  'NEXT_PUBLIC_GEMINI_MODEL_TEXT_QUALITY',
+  MODEL_TEXT_FAST
+);
+
+export const MODEL_IMAGE = getEnvModel(
+  'NEXT_PUBLIC_GEMINI_MODEL_IMAGE',
+  'gemini-2.5-flash-image'
+);
