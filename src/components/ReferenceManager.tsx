@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Copy, Download, ExternalLink, Globe, Library, ListOrdered, Plus, Search, Sparkles, Tag, Trash2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Copy, Download, ExternalLink, Globe, Library, ListOrdered, Plus, Search, Sparkles, Tag, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import { Button } from './Button';
-import { generatePubMedSearchQuery, summarizeReference } from '@/services/geminiService';
-import { fetchBatchReferenceMetadata, importReferenceMetadata, searchPubMed } from '@/services/referenceService';
+import { summarizeReference } from '@/services/geminiService';
+import { fetchBatchReferenceMetadata, importReferenceMetadata } from '@/services/referenceService';
 import { generateId } from '@/services/storageService';
 import { PaperSearchResult, Project, Reference } from '@/types';
 import { getBibliographyOrder } from '@/utils/citationUtils';
+import type { DiscoverClarifyingQuestion, DiscoverKeptItem, DiscoverMode, DiscoverQueryAttempt } from '@/lib/discover/types';
 
 interface ReferenceManagerProps {
   project: Project;
@@ -26,6 +27,30 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
   const [isSearching, setIsSearching] = useState(false);
   const [searchLogs, setSearchLogs] = useState<string[]>([]);
   const [addingSearchResult, setAddingSearchResult] = useState<number | null>(null);
+
+  const [discoverMode, setDiscoverMode] = useState<DiscoverMode>('highly_relevant');
+  const [discoverExclusions, setDiscoverExclusions] = useState({
+    englishOnly: true,
+    excludeAnimalOnly: true,
+    excludeCaseReports: true,
+    excludePediatrics: false,
+  });
+  const [discoverConstraints, setDiscoverConstraints] = useState({
+    yearFrom: undefined as number | undefined,
+    yearTo: undefined as number | undefined,
+    mustInclude: '',
+    mustExclude: '',
+  });
+
+  const [discoverRunId, setDiscoverRunId] = useState<string | null>(null);
+  const [clarifyingQuestions, setClarifyingQuestions] = useState<DiscoverClarifyingQuestion[]>([]);
+  const [clarifyingAnswers, setClarifyingAnswers] = useState<Record<string, string>>({});
+  const [discoverPlan, setDiscoverPlan] = useState<string[]>([]);
+  const [discoverAssumptions, setDiscoverAssumptions] = useState<string[]>([]);
+  const [discoverRubric, setDiscoverRubric] = useState<string>('');
+  const [discoverAttempts, setDiscoverAttempts] = useState<DiscoverQueryAttempt[]>([]);
+  const [discoverKept, setDiscoverKept] = useState<DiscoverKeptItem[]>([]);
+  const [feedbackByPmid, setFeedbackByPmid] = useState<Record<string, 'up' | 'down'>>({});
   
   const [expandedRefs, setExpandedRefs] = useState<Record<string, boolean>>({});
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -115,42 +140,163 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
     }
   };
 
-  const handleSearch = async () => {
-      if (!searchQuery.trim()) return;
-      setIsSearching(true);
-      setSearchResults([]);
-      setSearchLogs(["Initializing agent..."]);
+  const resetDiscoverState = () => {
+    setDiscoverRunId(null);
+    setClarifyingQuestions([]);
+    setClarifyingAnswers({});
+    setDiscoverPlan([]);
+    setDiscoverAssumptions([]);
+    setDiscoverRubric('');
+    setDiscoverAttempts([]);
+    setDiscoverKept([]);
+    setFeedbackByPmid({});
+    setSearchResults([]);
+    setSearchLogs([]);
+  };
 
+  const fetchDiscoverAgent = async (payload: Record<string, unknown>) => {
+    const response = await fetch('/api/discover/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error || response.statusText || 'Discover agent request failed';
+      throw new Error(`Discover agent (${response.status}): ${message}`);
+    }
+    return data;
+  };
+
+  const mergeKeptIntoResults = async (kept: DiscoverKeptItem[]) => {
+    const existing = new Map<string, PaperSearchResult>();
+    for (const r of searchResults) {
+      if (r.pmid) existing.set(r.pmid, r);
+    }
+
+    const missingPmids = kept
+      .map((k) => k.pmid)
+      .filter((pmid) => pmid && !existing.has(pmid));
+
+    let fetched: PaperSearchResult[] = [];
+    if (missingPmids.length > 0) {
       try {
-          // Step 1: Gemini Search Query Generation
-          setSearchLogs(prev => [...prev, "Translating request to PubMed syntax..."]);
-          const pubmedQuery = await generatePubMedSearchQuery(searchQuery);
-          setSearchLogs(prev => [...prev, `Generated Query: ${pubmedQuery}`]);
-
-          // Step 2: Search PubMed API
-          setSearchLogs(prev => [...prev, "Executing search on NCBI database..."]);
-          const pmids = await searchPubMed(pubmedQuery);
-
-          if (pmids.length === 0) {
-              setSearchLogs(prev => [...prev, "No results found on PubMed."]);
-              setIsSearching(false);
-              return;
-          }
-
-          setSearchLogs(prev => [...prev, `Found ${pmids.length} articles. Fetching metadata...`]);
-          
-          // Step 3: Fetch Metadata
-          const references = await fetchBatchReferenceMetadata(pmids);
-          
-          setSearchResults(references);
-          setSearchLogs(prev => [...prev, "Search complete."]);
-
+        fetched = await fetchBatchReferenceMetadata(missingPmids);
       } catch (e) {
-          console.error(e);
-          setSearchLogs(prev => [...prev, "Search process encountered an error."]);
-      } finally {
-          setIsSearching(false);
+        console.error('Failed fetching PubMed metadata', e);
       }
+      for (const item of fetched) {
+        if (item.pmid) existing.set(item.pmid, item);
+      }
+    }
+
+    const ordered = kept.map((k) => {
+      const base = existing.get(k.pmid) || { pmid: k.pmid, title: k.title, url: `https://pubmed.ncbi.nlm.nih.gov/${k.pmid}/` };
+      return { ...base, title: base.title || k.title, relevance: k.reason };
+    });
+
+    setSearchResults(ordered);
+  };
+
+  const runDiscoverSearch = async ({
+    runId,
+    answers,
+    additionalTarget,
+  }: {
+    runId: string;
+    answers?: Record<string, string>;
+    additionalTarget?: number;
+  }) => {
+    setIsSearching(true);
+    setSearchLogs((prev) => (prev.length ? [...prev, 'Running search agent...'] : ['Running search agent...']));
+    try {
+      const data = await fetchDiscoverAgent({
+        action: 'search',
+        runId,
+        clarifyingAnswers: answers,
+        feedback: {
+          thumbsUpPmids: Object.entries(feedbackByPmid).filter(([, v]) => v === 'up').map(([k]) => k),
+          thumbsDownPmids: Object.entries(feedbackByPmid).filter(([, v]) => v === 'down').map(([k]) => k),
+        },
+        additionalTarget,
+      });
+
+      setDiscoverRubric(data.rubric || '');
+      setDiscoverAttempts((data.attempts || []) as DiscoverQueryAttempt[]);
+      setSearchLogs((data.logs || []) as string[]);
+      setDiscoverKept((data.kept || []) as DiscoverKeptItem[]);
+      await mergeKeptIntoResults((data.kept || []) as DiscoverKeptItem[]);
+    } catch (e) {
+      console.error(e);
+      const message = e instanceof Error ? e.message : 'Search agent encountered an error.';
+      setSearchLogs((prev) => [...prev, message]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleDiscoverStart = async () => {
+    if (!searchQuery.trim()) return;
+    resetDiscoverState();
+    setIsSearching(true);
+    setSearchLogs(['Starting PubMed search agent...']);
+    try {
+      const data = await fetchDiscoverAgent({
+        action: 'start',
+        request: searchQuery,
+        mode: discoverMode,
+        exclusions: discoverExclusions,
+        constraints: discoverConstraints,
+      });
+
+      setDiscoverRunId(data.runId);
+      setClarifyingQuestions((data.clarifyingQuestions || []) as DiscoverClarifyingQuestion[]);
+      setDiscoverPlan((data.plan || []) as string[]);
+      setDiscoverAssumptions((data.assumptions || []) as string[]);
+      setSearchLogs((data.logs || []) as string[]);
+
+      if (!data.clarifyingQuestions || data.clarifyingQuestions.length === 0) {
+        await runDiscoverSearch({ runId: data.runId });
+      } else {
+        setIsSearching(false);
+      }
+    } catch (e) {
+      console.error(e);
+      const message = e instanceof Error ? e.message : 'Search agent encountered an error.';
+      setSearchLogs((prev) => [...prev, message]);
+      setIsSearching(false);
+    }
+  };
+
+  const handleDiscoverContinue = async () => {
+    if (!discoverRunId) return;
+    await runDiscoverSearch({ runId: discoverRunId, answers: clarifyingAnswers });
+  };
+
+  const handleDiscoverMore = async () => {
+    if (!discoverRunId) return;
+    const additionalTarget = discoverMode === 'highly_relevant' ? 10 : 25;
+    await runDiscoverSearch({ runId: discoverRunId, additionalTarget });
+  };
+
+  const handleDiscoverRefine = async () => {
+    if (!discoverRunId) return;
+    const hasFeedback = Object.keys(feedbackByPmid).length > 0;
+    if (!hasFeedback) return;
+    const additionalTarget = discoverMode === 'highly_relevant' ? 10 : 20;
+    await runDiscoverSearch({ runId: discoverRunId, additionalTarget });
+  };
+
+  const toggleFeedback = (pmid: string, value: 'up' | 'down') => {
+    setFeedbackByPmid((prev) => {
+      const next = { ...prev };
+      if (next[pmid] === value) {
+        delete next[pmid];
+        return next;
+      }
+      next[pmid] = value;
+      return next;
+    });
   };
 
   const handleAddSearchResult = async (result: PaperSearchResult, index: number) => {
@@ -386,15 +532,121 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                  <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">
                      <h4 className="font-semibold text-slate-800 mb-2">Find Relevant Articles</h4>
                      <p className="text-sm text-slate-500 mb-4">
-                        Search specifically for articles indexed in PubMed. Gemini will translate your request into a precise PubMed query, and we will fetch results directly from NCBI.
+                        Describe what you need, answer any quick clarifying questions, then the agent runs multiple PubMed queries and curates a relevance-filtered list.
                      </p>
+                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant={discoverMode === 'highly_relevant' ? 'primary' : 'secondary'}
+                                onClick={() => setDiscoverMode('highly_relevant')}
+                                disabled={isSearching}
+                            >
+                                Highly Relevant
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={discoverMode === 'comprehensive' ? 'primary' : 'secondary'}
+                                onClick={() => setDiscoverMode('comprehensive')}
+                                disabled={isSearching}
+                            >
+                                Comprehensive
+                            </Button>
+                        </div>
+                        <Button size="sm" variant="secondary" onClick={resetDiscoverState} disabled={isSearching}>
+                            Reset
+                        </Button>
+                     </div>
+
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4 text-sm text-slate-700">
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={discoverExclusions.englishOnly}
+                                onChange={(e) => setDiscoverExclusions((prev) => ({ ...prev, englishOnly: e.target.checked }))}
+                                disabled={isSearching}
+                            />
+                            English only
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={discoverExclusions.excludeAnimalOnly}
+                                onChange={(e) => setDiscoverExclusions((prev) => ({ ...prev, excludeAnimalOnly: e.target.checked }))}
+                                disabled={isSearching}
+                            />
+                            Exclude animal-only studies
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={discoverExclusions.excludeCaseReports}
+                                onChange={(e) => setDiscoverExclusions((prev) => ({ ...prev, excludeCaseReports: e.target.checked }))}
+                                disabled={isSearching}
+                            />
+                            Exclude case reports
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={discoverExclusions.excludePediatrics}
+                                onChange={(e) => setDiscoverExclusions((prev) => ({ ...prev, excludePediatrics: e.target.checked }))}
+                                disabled={isSearching}
+                            />
+                            Exclude pediatrics
+                        </label>
+                     </div>
+
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                        <input
+                            type="text"
+                            className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            placeholder="Must include (optional) — keywords or PubMed syntax"
+                            value={discoverConstraints.mustInclude}
+                            onChange={(e) => setDiscoverConstraints((prev) => ({ ...prev, mustInclude: e.target.value }))}
+                            disabled={isSearching}
+                        />
+                        <input
+                            type="text"
+                            className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            placeholder="Must exclude (optional) — keywords or PubMed syntax"
+                            value={discoverConstraints.mustExclude}
+                            onChange={(e) => setDiscoverConstraints((prev) => ({ ...prev, mustExclude: e.target.value }))}
+                            disabled={isSearching}
+                        />
+                        <input
+                            type="number"
+                            className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            placeholder="Year from (optional)"
+                            value={discoverConstraints.yearFrom ?? ''}
+                            onChange={(e) =>
+                                setDiscoverConstraints((prev) => ({ ...prev, yearFrom: e.target.value ? Number(e.target.value) : undefined }))
+                            }
+                            disabled={isSearching}
+                        />
+                        <input
+                            type="number"
+                            className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            placeholder="Year to (optional)"
+                            value={discoverConstraints.yearTo ?? ''}
+                            onChange={(e) =>
+                                setDiscoverConstraints((prev) => ({ ...prev, yearTo: e.target.value ? Number(e.target.value) : undefined }))
+                            }
+                            disabled={isSearching}
+                        />
+                     </div>
+
                      <div className="flex flex-col gap-3">
                         <textarea
                             className="w-full p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm h-24"
                             placeholder="e.g. Recent clinical trials for CAR-T therapy in solid tumors..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            onKeyDown={e => e.ctrlKey && e.key === 'Enter' && handleSearch()}
+                            onKeyDown={e => e.ctrlKey && e.key === 'Enter' && handleDiscoverStart()}
                         />
                         
                         {/* Search Logs / Terminal */}
@@ -414,21 +666,115 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                         )}
 
                         <div className="flex justify-end">
-                            <Button onClick={handleSearch} isLoading={isSearching} disabled={!searchQuery.trim()}>
-                                <Search size={16} className="mr-2" /> Search PubMed
+                            <Button onClick={handleDiscoverStart} isLoading={isSearching} disabled={!searchQuery.trim()}>
+                                <Sparkles size={16} className="mr-2" /> Start Agent
                             </Button>
                         </div>
                      </div>
+
+                     {(discoverPlan.length > 0 || discoverAssumptions.length > 0 || discoverRubric) && (
+                        <div className="mt-4">
+                            <details className="text-sm text-slate-600">
+                                <summary className="cursor-pointer select-none font-medium hover:text-blue-600">Agent details</summary>
+                                <div className="mt-3 space-y-3">
+                                    {discoverPlan.length > 0 && (
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Plan</div>
+                                            <ul className="list-disc pl-5 space-y-1">
+                                                {discoverPlan.map((item, idx) => (
+                                                    <li key={idx}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {discoverAssumptions.length > 0 && (
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Assumptions</div>
+                                            <ul className="list-disc pl-5 space-y-1">
+                                                {discoverAssumptions.map((item, idx) => (
+                                                    <li key={idx}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {discoverRubric && (
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Rubric</div>
+                                            <div className="whitespace-pre-wrap text-slate-700 bg-slate-50 border border-slate-200 rounded p-2">
+                                                {discoverRubric}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {discoverAttempts.length > 0 && (
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Queries Tried</div>
+                                            <div className="space-y-2">
+                                                {discoverAttempts.map((a) => (
+                                                    <div key={a.id} className="bg-slate-50 border border-slate-200 rounded p-2">
+                                                        <div className="font-mono text-xs text-slate-700 break-words">{a.query}</div>
+                                                        <div className="text-xs text-slate-500 mt-1">
+                                                            {a.pmidsFound} found • {a.titlesReviewed} screened • {a.kept} kept
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </details>
+                        </div>
+                     )}
+
+                     {discoverRunId && clarifyingQuestions.length > 0 && discoverKept.length === 0 && (
+                        <div className="mt-6 border-t border-slate-200 pt-4 space-y-4">
+                            <div className="text-sm font-semibold text-slate-800">Clarifying questions</div>
+                            <div className="space-y-3">
+                                {clarifyingQuestions.map((q) => (
+                                    <div key={q.id}>
+                                        <div className="text-sm text-slate-700 mb-1">{q.question}</div>
+                                        <input
+                                            type="text"
+                                            className="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                                            placeholder="Your answer (optional)"
+                                            value={clarifyingAnswers[q.id] || ''}
+                                            onChange={(e) => setClarifyingAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                                            disabled={isSearching}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="secondary" onClick={() => runDiscoverSearch({ runId: discoverRunId })} disabled={isSearching}>
+                                    Skip
+                                </Button>
+                                <Button onClick={handleDiscoverContinue} isLoading={isSearching}>
+                                    <Search size={16} className="mr-2" /> Run Search
+                                </Button>
+                            </div>
+                        </div>
+                     )}
                  </div>
 
                  {searchResults.length > 0 && (
                      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                         <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                            <span>Search Results</span>
+                            <span>Curated Results</span>
                             <span className="text-xs font-normal normal-case bg-slate-100 px-2 py-1 rounded">
                                 {searchResults.length} articles found
                             </span>
                         </h4>
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <Button size="sm" variant="secondary" onClick={handleDiscoverMore} disabled={!discoverRunId || isSearching}>
+                                More like these
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={handleDiscoverRefine}
+                                disabled={!discoverRunId || isSearching || Object.keys(feedbackByPmid).length === 0}
+                            >
+                                Refine with feedback
+                            </Button>
+                        </div>
                         {searchResults.map((result, idx) => (
                             <div key={idx} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm hover:border-blue-300 transition-colors">
                                 <div className="flex justify-between items-start mb-2">
@@ -443,6 +789,12 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                                 </div>
                                 
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600 mb-3">
+                                    {result.relevance && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-wide">
+                                            <Sparkles size={10} className="mr-1" />
+                                            {result.relevance}
+                                        </span>
+                                    )}
                                     {result.articleType && (
                                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wide">
                                             <Tag size={10} className="mr-1" />
@@ -487,21 +839,46 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
                                             </span>
                                         )}
                                     </div>
-                                    
-                                    {project.references.some(r => result.pmid && r.notes?.includes(result.pmid)) ? (
-                                        <span className="text-green-600 text-sm font-medium flex items-center px-4 py-2">
-                                            Added
-                                        </span>
-                                    ) : (
-                                        <Button 
-                                            size="sm" 
-                                            onClick={() => handleAddSearchResult(result, idx)} 
-                                            isLoading={addingSearchResult === idx}
-                                            disabled={addingSearchResult !== null}
-                                        >
-                                            <Plus size={16} className="mr-1" /> Add to Library
-                                        </Button>
-                                    )}
+
+                                    <div className="flex items-center gap-2">
+                                        {result.pmid && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    className={`p-2 rounded border text-sm ${feedbackByPmid[result.pmid] === 'up' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                    onClick={() => toggleFeedback(result.pmid!, 'up')}
+                                                    disabled={isSearching}
+                                                    title="Thumbs up (more like this)"
+                                                >
+                                                    <ThumbsUp size={16} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`p-2 rounded border text-sm ${feedbackByPmid[result.pmid] === 'down' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                    onClick={() => toggleFeedback(result.pmid!, 'down')}
+                                                    disabled={isSearching}
+                                                    title="Thumbs down (avoid this)"
+                                                >
+                                                    <ThumbsDown size={16} />
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {project.references.some(r => result.pmid && r.notes?.includes(result.pmid)) ? (
+                                            <span className="text-green-600 text-sm font-medium flex items-center px-2">
+                                                Added
+                                            </span>
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleAddSearchResult(result, idx)}
+                                                isLoading={addingSearchResult === idx}
+                                                disabled={addingSearchResult !== null}
+                                            >
+                                                <Plus size={16} className="mr-1" /> Add to Library
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}

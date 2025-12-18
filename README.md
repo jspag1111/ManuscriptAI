@@ -24,7 +24,12 @@ Next.js 16 app for drafting and managing research manuscripts with AI-assisted t
      - **Local SQLite (recommended for dev/testing):** set `MANUSCRIPTAI_DB_TARGET=local` (defaults to `data/projects.sqlite`), optionally override with `MANUSCRIPTAI_LOCAL_DB_PATH`.
        - Note: if `TURSO_DATABASE_URL` is not set, the app automatically falls back to local `data/projects.sqlite`.
    - **Auth (Clerk):** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` (store only in `.env.local`/Vercel env vars).
-   - **Gemini:** `NEXT_PUBLIC_GEMINI_API_KEY` for AI drafting/refinement.
+   - **LLM (Gemini default):**
+     - Provider: `MANUSCRIPTAI_LLM_PROVIDER=gemini` (default).
+     - Server-side key (recommended): `GEMINI_API_KEY` (used by the PubMed Discover agent).
+     - Legacy/client key: `NEXT_PUBLIC_GEMINI_API_KEY` (still used by existing client-side drafting/refinement code).
+     - Optional model overrides: `MANUSCRIPTAI_LLM_MODEL_FAST` and `MANUSCRIPTAI_LLM_MODEL_QUALITY`.
+   - **PubMed / NCBI (optional but recommended for higher rate limits):** `NCBI_API_KEY`, plus `NCBI_EMAIL` and `NCBI_TOOL` for polite usage.
    - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
    - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
    - Optional: `SEED_PROJECT_OWNER_ID` (or `DEFAULT_PROJECT_OWNER_ID`) to claim seeded example projects for a specific Clerk user; set this to your own user id (e.g., `user_...`) to keep seed data private.

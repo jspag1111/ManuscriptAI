@@ -1,3 +1,11 @@
+## 2025-12-16 05:42 UTC
+- (Commit: codex/discover-agent-error-surface) Fixed Discover agent failures to return and display the underlying server error (instead of a generic “Discover agent failed”), and added a one-step JSON-repair retry for stricter LLM JSON outputs.
+
+## 2025-12-16 05:34 UTC
+- (Commit: codex/discover-agent-pubmed) Added a server-side PubMed Discover agent that asks clarifying questions, generates a plan, runs diversified queries, retries when queries fail, and curates results by screening titles for relevance.
+- (Commit: codex/discover-agent-pubmed) Changed the References → Search tab to support agent mode selection (Highly Relevant vs Comprehensive), exclusions, and thumbs up/down feedback with “More like these” continuation.
+- (Commit: codex/discover-agent-pubmed) Fixed PubMed metadata fetching to run in chunks so larger curated result sets don’t hit URL-size limits.
+
 ## 2025-12-16 04:55 UTC
 - (Commit: codex/comment-actions-order) Changed comment card actions to place the trashcan to the far right, with “Address with AI” immediately to its left.
 

@@ -40,6 +40,18 @@ const ensureSchema = async (client: Client) => {
   }
 
   await client.execute('CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id)');
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS discover_runs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      created INTEGER NOT NULL,
+      last_modified INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+  `);
+
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_discover_runs_user_id ON discover_runs(user_id)');
 };
 
 const findSeedFile = (): string | null => {
@@ -257,4 +269,42 @@ export const projectStore = {
     ? LOCAL_DB_URL
     : (TURSO_URL ?? 'unset'),
   dbPath: LOCAL_DB_PATH,
+};
+
+export const discoverRunStore = {
+  get: async (id: string, userId: string) => {
+    if (!userId) {
+      throw new Error('User id is required to load a discover run.');
+    }
+    const client = await getClient();
+    const row = await client.execute({
+      sql: 'SELECT data FROM discover_runs WHERE id = ? AND user_id = ? LIMIT 1',
+      args: [id, userId],
+    });
+    const data = row.rows?.[0]?.data;
+    if (!data) return null;
+    return JSON.parse(String(data));
+  },
+  save: async (run: { id: string; userId: string; createdAt?: number; updatedAt?: number } & Record<string, any>) => {
+    if (!run?.userId) {
+      throw new Error('User id is required to save a discover run.');
+    }
+    const client = await getClient();
+    const created = typeof run.createdAt === 'number' ? run.createdAt : Date.now();
+    const lastModified = typeof run.updatedAt === 'number' ? run.updatedAt : Date.now();
+
+    await client.execute({
+      sql: `
+        INSERT INTO discover_runs (id, user_id, created, last_modified, data)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          user_id=excluded.user_id,
+          created=excluded.created,
+          last_modified=excluded.last_modified,
+          data=excluded.data
+      `,
+      args: [run.id, run.userId, created, lastModified, JSON.stringify(run)],
+    });
+    return run;
+  },
 };
