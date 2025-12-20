@@ -1,3 +1,9 @@
+## 2025-12-20 01:07 UTC
+- (Commit: codex/review-tests) Reviewed new unit tests to avoid duplication by covering Discover start-state overrides and LLM fallback handling when payloads are malformed.
+
+## 2025-12-20 00:52 UTC
+- (Commit: codex/add-critical-tests) Added unit tests for Discover agent sanitization plus utility coverage for text stats and deterministic change colors.
+
 ## 2025-12-17 16:52 UTC
 - (Commit: codex/update-gemini-flash) Swapped Gemini text models to default to gemini-3-flash-preview with environment overrides for easy future model changes.
 
