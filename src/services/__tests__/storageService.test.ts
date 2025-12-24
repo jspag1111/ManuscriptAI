@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { DEFAULT_WRITING_BRIEF } from '@/lib/projects';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '../storageService';
 import type { GeneratedFigure, Project } from '@/types';
 
@@ -24,6 +25,8 @@ describe('storageService', () => {
     expect(project).toMatchObject({
       title: 'Title',
       description: 'Desc',
+      projectType: 'MANUSCRIPT',
+      writingBrief: DEFAULT_WRITING_BRIEF,
       settings: expect.any(Object),
       manuscriptMetadata: { authors: [], affiliations: [] },
       sections: [],

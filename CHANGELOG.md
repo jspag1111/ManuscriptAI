@@ -1,3 +1,7 @@
+## 2025-12-24 03:11 UTC
+- (Commit: codex/add-general-writing-studio) Added a general writing workspace at `/writing` with a brief-first panel, outline capture, and draft/brief/history navigation while reusing the ProseMirror editor, comments, tracked changes, and version history.
+- (Commit: codex/add-general-writing-studio) Added project-level writing brief fields that feed Gemini drafting and refinement prompts, plus updated navigation links, docs, and tests.
+
 ## 2025-12-17 21:27 UTC
 - (Commit: codex/add-unit-tests) Added unit tests for Utilities (`src/utils`) and ProseMirror Serialization (`src/lib/prosemirror/serialization.ts`), creating a foundation for iterative test generation.
 

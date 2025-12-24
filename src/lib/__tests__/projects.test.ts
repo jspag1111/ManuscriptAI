@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, normalizeProject } from '../projects';
+import { DEFAULT_SETTINGS, DEFAULT_WRITING_BRIEF, normalizeProject } from '../projects';
 
 import type { Project } from '@/types';
 
@@ -32,6 +32,8 @@ describe('normalizeProject', () => {
     const normalized = normalizeProject(baseProject);
 
     expect(normalized.settings).toEqual(DEFAULT_SETTINGS);
+    expect(normalized.projectType).toBe('MANUSCRIPT');
+    expect(normalized.writingBrief).toEqual(DEFAULT_WRITING_BRIEF);
     expect(normalized.manuscriptMetadata).toEqual({ authors: [], affiliations: [] });
     expect(normalized.sections[0].useReferences).toBe(true);
     expect(normalized.sections[0].includeInWordCount).toBe(true);

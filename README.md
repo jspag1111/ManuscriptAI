@@ -4,7 +4,7 @@
 
 # ManuscriptAI (Next.js)
 
-Next.js 16 app for drafting and managing research manuscripts with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
+Next.js 16 app for drafting and managing research manuscripts plus general writing projects with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
 
 ## Tech Stack
 - Next.js App Router + React 19, Tailwind CSS for styling
@@ -66,3 +66,4 @@ Replace `user_abc123` with the Clerk user id of the account that should keep the
 - DOCX export and figure upload are purely client-side; data persistence is handled through the `/api/projects` route handlers (Turso or local SQLite).
 - The local database is stored under `data/` so it can be mounted or swapped out during development.
 - Authentication is handled by Clerk (App Router). Sign-in and sign-up are available at `/sign-in` and `/sign-up`, with modal triggers in the header. All API routes enforce the signed-in user and scope data to the current Clerk user ID.
+- General writing projects live at `/writing`, with a brief-first flow that feeds goals/outline context into Gemini drafting and edits.

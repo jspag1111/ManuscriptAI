@@ -1,10 +1,18 @@
-import type { GeneratedFigure, Project, ProjectSettings, Section } from '@/types';
+import type { GeneratedFigure, Project, ProjectSettings, ProjectType, Section, WritingBrief } from '@/types';
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
   targetJournal: '',
   wordCountTarget: 3000,
   formattingRequirements: '',
   tone: 'Academic and formal',
+};
+
+export const DEFAULT_WRITING_BRIEF: WritingBrief = {
+  goals: '',
+  audience: '',
+  format: '',
+  outline: '',
+  tone: '',
 };
 
 export const generateId = (): string => {
@@ -156,6 +164,17 @@ const normalizeSection = (section: Partial<Section>, fallbackTime: number): Sect
   return withDefaults;
 };
 
+const normalizeWritingBrief = (brief?: Partial<WritingBrief> | null): WritingBrief => ({
+  goals: typeof brief?.goals === 'string' ? brief.goals : '',
+  audience: typeof brief?.audience === 'string' ? brief.audience : '',
+  format: typeof brief?.format === 'string' ? brief.format : '',
+  outline: typeof brief?.outline === 'string' ? brief.outline : '',
+  tone: typeof brief?.tone === 'string' ? brief.tone : '',
+});
+
+const normalizeProjectType = (value: unknown): ProjectType =>
+  value === 'GENERAL' ? 'GENERAL' : 'MANUSCRIPT';
+
 export const normalizeProject = (project: Partial<Project>): Project => {
   const legacyLastModified = (project as any).last_modified as number | undefined;
   const fallbackTime = project.lastModified || legacyLastModified || project.created || Date.now();
@@ -170,6 +189,8 @@ export const normalizeProject = (project: Partial<Project>): Project => {
     description: project.description || '',
     created: project.created || fallbackTime,
     lastModified: project.lastModified || legacyLastModified || fallbackTime,
+    projectType: normalizeProjectType(project.projectType),
+    writingBrief: normalizeWritingBrief(project.writingBrief ?? null),
     settings: project.settings || { ...DEFAULT_SETTINGS },
     manuscriptMetadata: project.manuscriptMetadata || { authors: [], affiliations: [] },
     sections: normalizedSections,

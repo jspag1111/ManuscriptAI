@@ -203,7 +203,9 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     setIsDrafting(true);
     handleSave();
     try {
-      const draftInstruction = 'Draft or improve the section based on the notes.';
+      const draftInstruction = project.projectType === 'GENERAL'
+        ? 'Draft or improve the text based on the writing brief and notes.'
+        : 'Draft or improve the section based on the notes.';
       const { text, model } = await generateSectionDraft(
         project,
         { ...section, userNotes: notes, content },
@@ -442,7 +444,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     if (!selectionData || !refinePrompt) return;
     setIsRefining(true);
     try {
-      const { text, model } = await refineTextSelection(selectionData.text, refinePrompt, content);
+      const { text, model } = await refineTextSelection(selectionData.text, refinePrompt, content, project);
       const range = selectionData.range;
       if (!range) {
         throw new Error('Selection range missing for refinement.');
@@ -661,14 +663,16 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
         const instruction = [
           'Address the following comment thread by revising ONLY the selected text.',
-          'Keep the writing academic and preserve any citation markers like [[ref:ID]].',
+          project.projectType === 'GENERAL'
+            ? 'Keep the writing aligned with the project writing brief and preserve any citation markers like [[ref:ID]].'
+            : 'Keep the writing academic and preserve any citation markers like [[ref:ID]].',
           'If the comment requests clarification, prefer adding a brief clarifying sentence rather than rewriting everything.',
           '',
           'Comment thread:',
           threadTranscript || '(no messages)',
         ].join('\n');
 
-        const { text, model } = await refineTextSelection(selectedText, instruction, content);
+        const { text, model } = await refineTextSelection(selectedText, instruction, content, project);
         const actor: ChangeActor = { type: 'LLM', model };
 
         const { previewContent, event } = buildReplaceSelectionAiReview({
@@ -697,7 +701,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         setIsAddressingComment(false);
       }
     },
-    [content, isAddressingComment, isReviewing]
+    [content, isAddressingComment, isReviewing, project]
   );
 
   const filteredReferences = project.references.filter(r =>

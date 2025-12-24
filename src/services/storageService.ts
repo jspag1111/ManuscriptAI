@@ -1,5 +1,5 @@
-import { DEFAULT_SETTINGS, generateId, normalizeProject, normalizeProjects } from '@/lib/projects';
-import type { Project } from '@/types';
+import { DEFAULT_SETTINGS, DEFAULT_WRITING_BRIEF, generateId, normalizeProject, normalizeProjects } from '@/lib/projects';
+import type { Project, ProjectType, WritingBrief } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/api';
 export { generateId };
@@ -40,13 +40,19 @@ export const deleteProject = async (id: string): Promise<void> => {
   }
 };
 
-export const createNewProject = (title: string, description: string): Project => {
+export const createNewProject = (
+  title: string,
+  description: string,
+  options?: { projectType?: ProjectType; writingBrief?: WritingBrief }
+): Project => {
   return {
     id: generateId(),
     title,
     description,
     created: Date.now(),
     lastModified: Date.now(),
+    projectType: options?.projectType ?? 'MANUSCRIPT',
+    writingBrief: options?.writingBrief ?? { ...DEFAULT_WRITING_BRIEF },
     settings: { ...DEFAULT_SETTINGS },
     manuscriptMetadata: {
         authors: [],

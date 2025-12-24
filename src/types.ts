@@ -123,6 +123,16 @@ export interface ProjectSettings {
   tone: string;
 }
 
+export type ProjectType = 'MANUSCRIPT' | 'GENERAL';
+
+export interface WritingBrief {
+  goals: string;
+  audience: string;
+  format: string;
+  outline: string;
+  tone: string;
+}
+
 export interface Affiliation {
   id: string;
   institution: string;
@@ -151,6 +161,8 @@ export interface Project {
   description: string;
   created: number;
   lastModified: number;
+  projectType?: ProjectType;
+  writingBrief?: WritingBrief;
   settings: ProjectSettings;
   manuscriptMetadata: ManuscriptMetadata;
   sections: Section[];

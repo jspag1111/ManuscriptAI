@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { DEFAULT_SECTIONS } from '@/constants';
 import { Button } from '@/components/Button';
 import { FigureGenerator } from '@/components/FigureGenerator';
@@ -113,6 +114,7 @@ const ManuscriptApp: React.FC = () => {
     [currentProject]
   );
 
+  const isManuscriptProject = (project: Project) => project.projectType !== 'GENERAL';
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
 
@@ -124,7 +126,8 @@ const ManuscriptApp: React.FC = () => {
       try {
         const loaded = await getProjects();
         if (!isMounted) return;
-        setProjects(sortProjects(loaded));
+        const manuscripts = loaded.filter(isManuscriptProject);
+        setProjects(sortProjects(manuscripts));
       } catch (e) {
         console.error('Failed to load projects from database', e);
         if (isMounted) setProjectError('Failed to load projects from local database.');
@@ -201,8 +204,8 @@ const ManuscriptApp: React.FC = () => {
     setCurrentProject(projectWithTimestamp);
     saveProject(projectWithTimestamp)
       .then((saved) => {
-        setCurrentProject(saved);
-        setProjects(prev => upsertProject(prev, saved));
+      setCurrentProject(saved);
+      setProjects(prev => (isManuscriptProject(saved) ? upsertProject(prev, saved) : prev));
       })
       .catch((err) => {
         console.error('Failed to save project', err);
@@ -344,9 +347,17 @@ const ManuscriptApp: React.FC = () => {
                 <p className="text-slate-600">Create, revisit, and polish manuscripts with responsive, elegant tools.</p>
               </div>
             </div>
-            <Button onClick={handleCreateProjectClick} size="lg" className="shadow-lg shadow-blue-500/20 px-4">
-              <Plus className="mr-2" size={20} /> New Project
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/writing"
+                className="px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 hover:text-blue-700 transition-colors"
+              >
+                General Writing
+              </Link>
+              <Button onClick={handleCreateProjectClick} size="lg" className="shadow-lg shadow-blue-500/20 px-4">
+                <Plus className="mr-2" size={20} /> New Project
+              </Button>
+            </div>
           </header>
 
           {projectError && (
