@@ -60,26 +60,37 @@ export const searchPubMed = async (term: string): Promise<string[]> => {
 };
 
 export const fetchBatchReferenceMetadata = async (pmids: string[]): Promise<PaperSearchResult[]> => {
-    if (pmids.length === 0) return [];
-    const idString = pmids.join(',');
-    
-    try {
-      const response = await fetch(
-        `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${idString}&retmode=xml`,
-        { mode: 'cors', credentials: 'omit' }
-      );
-      
-      if (response.ok) {
+    const unique = Array.from(new Set(pmids.filter(Boolean)));
+    if (unique.length === 0) return [];
+
+    const chunkSize = 80; // keeps URL length reasonable and reduces NCBI errors
+    const chunks: string[][] = [];
+    for (let i = 0; i < unique.length; i += chunkSize) {
+      chunks.push(unique.slice(i, i + chunkSize));
+    }
+
+    const results: PaperSearchResult[] = [];
+    for (const chunk of chunks) {
+      const idString = chunk.join(',');
+      try {
+        const response = await fetch(
+          `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${idString}&retmode=xml`,
+          { mode: 'cors', credentials: 'omit' }
+        );
+
+        if (response.ok) {
           const text = await response.text();
           const parser = new DOMParser();
           const xml = parser.parseFromString(text, "text/xml");
           const articles = Array.from(xml.querySelectorAll("PubmedArticle"));
-          return articles.map(parsePubMedXml);
-      }
-    } catch (e) {
+          results.push(...articles.map(parsePubMedXml));
+        }
+      } catch (e) {
         console.error("Batch Fetch Error", e);
+      }
     }
-    return [];
+
+    return results;
 };
 
 export const importReferenceMetadata = async (query: string): Promise<Partial<Reference> | null> => {

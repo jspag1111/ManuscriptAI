@@ -1,3 +1,70 @@
+## 2025-12-24 03:11 UTC
+- (Commit: codex/add-general-writing-studio) Added a general writing workspace at `/writing` with a brief-first panel, outline capture, and draft/brief/history navigation while reusing the ProseMirror editor, comments, tracked changes, and version history.
+- (Commit: codex/add-general-writing-studio) Added project-level writing brief fields that feed Gemini drafting and refinement prompts, plus updated navigation links, docs, and tests.
+
+## 2025-12-17 21:27 UTC
+- (Commit: codex/add-unit-tests) Added unit tests for Utilities (`src/utils`) and ProseMirror Serialization (`src/lib/prosemirror/serialization.ts`), creating a foundation for iterative test generation.
+
+## 2025-12-17 16:52 UTC
+- (Commit: codex/update-gemini-flash) Swapped Gemini text models to default to gemini-3-flash-preview with environment overrides for easy future model changes.
+
+## 2025-12-16 05:42 UTC
+- (Commit: codex/discover-agent-error-surface) Fixed Discover agent failures to return and display the underlying server error (instead of a generic “Discover agent failed”), and added a one-step JSON-repair retry for stricter LLM JSON outputs.
+
+## 2025-12-16 05:34 UTC
+- (Commit: codex/discover-agent-pubmed) Added a server-side PubMed Discover agent that asks clarifying questions, generates a plan, runs diversified queries, retries when queries fail, and curates results by screening titles for relevance.
+- (Commit: codex/discover-agent-pubmed) Changed the References → Search tab to support agent mode selection (Highly Relevant vs Comprehensive), exclusions, and thumbs up/down feedback with “More like these” continuation.
+- (Commit: codex/discover-agent-pubmed) Fixed PubMed metadata fetching to run in chunks so larger curated result sets don’t hit URL-size limits.
+
+## 2025-12-16 04:55 UTC
+- (Commit: codex/comment-actions-order) Changed comment card actions to place the trashcan to the far right, with “Address with AI” immediately to its left.
+
+## 2025-12-16 04:52 UTC
+- (Commit: codex/delete-comments) Added a trashcan delete action for your own comment threads in the Comments panel (with a confirmation prompt).
+
+## 2025-12-16 04:24 UTC
+- (Commit: codex/full-manuscript-view) Added a Full Manuscript workspace view that lets you review/edit every section in one scroll, with comments/AI edits/tracked changes persisting on their original sections.
+
+## 2025-12-16 04:08 UTC
+- (Commit: codex/fix-comment-panel-nested-buttons) Fixed a Comments panel hydration error by removing nested `<button>` elements in the thread list cards.
+
+## 2025-12-16 04:03 UTC
+- (Commit: codex/comment-panel-ui-polish-followup) Comments panel follow-up: removed the highlighted-text excerpt from thread cards and moved “Address with AI” to an icon button on each comment card.
+
+## 2025-12-16 03:54 UTC
+- (Commit: codex/comment-panel-ui-polish) Refined the Comments panel UI: removed the “On:” label, replaced bulky Open/Resolve controls with a compact checkbox-style toggle, moved “Address with AI” to a header icon action, and modernized comment card styling.
+
+## 2025-12-15 22:39 EST
+- (Commit: codex/remove-comment-bubbles) Removed the in-editor comment bubble markers; comments now only render as subtle text highlights when the Comments panel is open (no in-text comment visuals when the panel is closed).
+
+## 2025-12-15 22:27 EST
+- (Commit: codex/fix-comment-bubble-init-crash) Fixed a runtime crash when opening projects where comment bubble widgets tried to compute screen coordinates before ProseMirror finished initializing its DOM view.
+
+## 2025-12-15 22:19 EST
+- (Commit: codex/comment-bubbles-ux) Changed comment rendering so comment ranges are only highlighted when the Comments panel is open; when closed, show small margin bubbles on the referenced line that can be clicked to open/select the thread and jump to the text.
+
+## 2025-12-15 16:12 EST
+- (Commit: codex/inline-comments-panel) Added inline text comments with a selection toolbar (AI + comment actions), a right-side Comments panel (with mobile drawer), threaded replies, resolve/reopen, and Open/Resolved/All filters.
+- Added comment highlighting in the editor plus comment-linked tracked-edit attribution (Change panel shows a Comment badge when an edit is related to a comment).
+- Added “Address with AI” on comment threads to propose tracked edits using the selected text + comment thread context, and persisted comment threads (including resolve metadata and AI links) into section version snapshots/restores.
+
+## 2025-12-15 15:06 EST
+- (Commit: codex/change-panel-focus-and-llm-request) Added click-to-focus in the Edits panel so selecting an edit highlights (and scrolls to) the exact tracked-change spans it produced.
+- Added optional persisted LLM request text on tracked change events, with a compact preview + modal viewer in the Edits panel.
+
+## 2025-12-14 01:45 EST
+- (Commit: codex/prosemirror-ai-selection-refine) Fixed click-drag selection + AI refine in the ProseMirror editor to preserve multi-paragraph selections and citation atoms by applying replacements as ProseMirror slices (not raw text insertion).
+
+## 2025-12-14 01:34 EST
+- (Commit: codex/version-history-tracked-edits) Added per-version tracked-edit snapshots (base content + change events) so Version History can replay highlights + attribution relative to the document each version started from.
+- Fixed AI-apply flows to persist LLM-attributed change events reliably (so tracked edits survive navigation/reload).
+
+## 2025-12-14 01:01 EST
+- (Commit: codex/prosemirror-track-changes) Added a ProseMirror section editor with persisted edit-attribution (Clerk user + LLM model) plus a highlight toggle + change panel.
+- Added ProseMirror-native in-text citation rendering (atomic citation nodes with formatted numbering, raw marker display, and clipboard-safe serialization).
+- Changed AI draft/refine review to a ProseMirror-based overlay that previews and applies edits as tracked changes (replacing the legacy diff viewer).
+- Added a local DB toggle (`MANUSCRIPTAI_DB_TARGET=local`) to test against `data/projects.sqlite` while keeping Turso configuration intact.
+
 ## 2025-12-12
 - Fixed UI layout to reduce side margins and optimize working space.
 - Merged section title and "last saved" info into the section notes card.

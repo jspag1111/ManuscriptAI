@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
+import { DEFAULT_WRITING_BRIEF } from '@/lib/projects';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '../storageService';
-import type { Project } from '@/types';
+import type { GeneratedFigure, Project } from '@/types';
 
 const createFetchResponse = (data: any, ok = true): Response => ({
   ok,
@@ -24,6 +25,8 @@ describe('storageService', () => {
     expect(project).toMatchObject({
       title: 'Title',
       description: 'Desc',
+      projectType: 'MANUSCRIPT',
+      writingBrief: DEFAULT_WRITING_BRIEF,
       settings: expect.any(Object),
       manuscriptMetadata: { authors: [], affiliations: [] },
       sections: [],
@@ -44,7 +47,17 @@ describe('storageService', () => {
         { id: 'section-1', title: 'Intro', content: 'Body', userNotes: 'Notes', versions: [], lastModified: 1 }
       ],
       figures: [
-        { id: 'fig-1', base64: 'data:image/png;base64,abc', createdAt: 1 }
+        {
+          id: 'fig-1',
+          base64: 'data:image/png;base64,abc',
+          createdAt: 1,
+          title: '',
+          label: '',
+          description: '',
+          includeInWordCount: false,
+          figureType: 'figure',
+          sourceType: 'AI',
+        },
       ]
     };
 

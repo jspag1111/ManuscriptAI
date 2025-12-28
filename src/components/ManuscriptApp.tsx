@@ -2,9 +2,11 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { DEFAULT_SECTIONS } from '@/constants';
 import { Button } from '@/components/Button';
 import { FigureGenerator } from '@/components/FigureGenerator';
+import { FullManuscriptView } from '@/components/FullManuscriptView';
 import { HistoryViewer } from '@/components/HistoryViewer';
 import { MetadataEditor } from '@/components/MetadataEditor';
 import { ReferenceManager } from '@/components/ReferenceManager';
@@ -12,6 +14,7 @@ import { SectionEditor } from '@/components/SectionEditor';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '@/services/storageService';
 import { exportProjectToWord } from '@/services/exportService';
 import { AppView, Project, Section, SectionView } from '@/types';
+import { getBibliographyOrder } from '@/utils/citationUtils';
 import { calculateTextStats } from '@/utils/textStats';
 import { ArrowLeft, BookOpen, Check, Download, Edit2, FileText, Image as ImageIcon, Info, Plus, Save, Trash2, X } from 'lucide-react';
 
@@ -106,6 +109,12 @@ const ManuscriptApp: React.FC = () => {
     };
   }, [currentProject]);
 
+  const bibliographyOrder = useMemo(
+    () => (currentProject ? getBibliographyOrder(currentProject.sections) : []),
+    [currentProject]
+  );
+
+  const isManuscriptProject = (project: Project) => project.projectType !== 'GENERAL';
   const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
   const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
 
@@ -117,7 +126,8 @@ const ManuscriptApp: React.FC = () => {
       try {
         const loaded = await getProjects();
         if (!isMounted) return;
-        setProjects(sortProjects(loaded));
+        const manuscripts = loaded.filter(isManuscriptProject);
+        setProjects(sortProjects(manuscripts));
       } catch (e) {
         console.error('Failed to load projects from database', e);
         if (isMounted) setProjectError('Failed to load projects from local database.');
@@ -152,7 +162,9 @@ const ManuscriptApp: React.FC = () => {
       currentVersionId: generateId(),
       currentVersionBase: '',
       currentVersionStartedAt: Date.now(),
-      lastLlmContent: null
+      lastLlmContent: null,
+      changeEvents: [],
+      commentThreads: [],
     }));
 
     try {
@@ -192,8 +204,8 @@ const ManuscriptApp: React.FC = () => {
     setCurrentProject(projectWithTimestamp);
     saveProject(projectWithTimestamp)
       .then((saved) => {
-        setCurrentProject(saved);
-        setProjects(prev => upsertProject(prev, saved));
+      setCurrentProject(saved);
+      setProjects(prev => (isManuscriptProject(saved) ? upsertProject(prev, saved) : prev));
       })
       .catch((err) => {
         console.error('Failed to save project', err);
@@ -235,7 +247,9 @@ const ManuscriptApp: React.FC = () => {
       currentVersionId: generateId(),
       currentVersionBase: '',
       currentVersionStartedAt: Date.now(),
-      lastLlmContent: null
+      lastLlmContent: null,
+      changeEvents: [],
+      commentThreads: [],
     };
 
     if (currentProject) {
@@ -333,9 +347,17 @@ const ManuscriptApp: React.FC = () => {
                 <p className="text-slate-600">Create, revisit, and polish manuscripts with responsive, elegant tools.</p>
               </div>
             </div>
-            <Button onClick={handleCreateProjectClick} size="lg" className="shadow-lg shadow-blue-500/20 px-4">
-              <Plus className="mr-2" size={20} /> New Project
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/writing"
+                className="px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 hover:text-blue-700 transition-colors"
+              >
+                General Writing
+              </Link>
+              <Button onClick={handleCreateProjectClick} size="lg" className="shadow-lg shadow-blue-500/20 px-4">
+                <Plus className="mr-2" size={20} /> New Project
+              </Button>
+            </div>
           </header>
 
           {projectError && (
@@ -466,6 +488,15 @@ const ManuscriptApp: React.FC = () => {
               <div className="space-y-3">
                 <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Manuscript Info</h2>
                 <button
+                  onClick={() => setActiveTab(SectionView.MANUSCRIPT)}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${activeTab === SectionView.MANUSCRIPT
+                      ? 'bg-blue-600 text-white shadow-blue-200'
+                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                >
+                  <FileText size={16} className="mr-2" /> Full Manuscript
+                </button>
+                <button
                   onClick={() => setActiveTab(SectionView.METADATA)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${activeTab === SectionView.METADATA
                       ? 'bg-blue-600 text-white shadow-blue-200'
@@ -566,8 +597,8 @@ const ManuscriptApp: React.FC = () => {
                     <ImageIcon size={16} className="mr-2" /> Figures
                   </button>
                   <button
-                    onClick={() => setActiveTab('REFERENCES' as any)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${(activeTab as any) === 'REFERENCES'
+                    onClick={() => setActiveTab(SectionView.REFERENCES)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${activeTab === SectionView.REFERENCES
                         ? 'bg-blue-100 text-blue-700'
                         : 'text-slate-700 hover:bg-slate-50'
                       }`}
@@ -674,6 +705,8 @@ const ManuscriptApp: React.FC = () => {
             {activeTab === SectionView.VERSIONS && activeSection && (
               <HistoryViewer
                 section={activeSection}
+                bibliographyOrder={bibliographyOrder}
+                references={currentProject.references}
                 onClose={() => setActiveTab(SectionView.EDITOR)}
                 onRestore={(version) => {
                   handleUpdateSection({
@@ -685,8 +718,16 @@ const ManuscriptApp: React.FC = () => {
                     currentVersionStartedAt: Date.now(),
                     currentVersionId: generateId(),
                     lastLlmContent: null,
+                    changeEvents: [],
+                    commentThreads: Array.isArray(version.commentThreads) ? version.commentThreads : [],
                     versions: [
-                      { ...version, id: generateId(), timestamp: Date.now(), commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`, source: 'USER' },
+                      {
+                        ...version,
+                        id: generateId(),
+                        timestamp: Date.now(),
+                        commitMessage: `Restored from ${new Date(version.timestamp).toLocaleDateString()}`,
+                        source: 'USER',
+                      },
                       ...activeSection.versions
                     ]
                   });
@@ -702,7 +743,7 @@ const ManuscriptApp: React.FC = () => {
               />
             )}
 
-            {(activeTab as any) === 'REFERENCES' && (
+            {activeTab === SectionView.REFERENCES && (
               <ReferenceManager
                 project={currentProject}
                 onUpdateProject={handleUpdateProject}
@@ -713,6 +754,17 @@ const ManuscriptApp: React.FC = () => {
               <MetadataEditor
                 project={currentProject}
                 onUpdateProject={handleUpdateProject}
+              />
+            )}
+
+            {activeTab === SectionView.MANUSCRIPT && (
+              <FullManuscriptView
+                project={currentProject}
+                onUpdateSection={handleUpdateSection}
+                onOpenSection={(sectionId, nextView) => {
+                  setActiveSectionId(sectionId);
+                  setActiveTab(nextView ?? SectionView.EDITOR);
+                }}
               />
             )}
           </div>

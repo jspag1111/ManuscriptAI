@@ -36,7 +36,8 @@ const generateContentWithFallback = async (
   for (let i = 0; i < models.length; i++) {
     const model = models[i];
     try {
-      return await ai.models.generateContent({ ...request, model });
+      const response = await ai.models.generateContent({ ...request, model });
+      return { response, model };
     } catch (error) {
       lastError = error;
       const isLastModel = i === models.length - 1;
@@ -49,15 +50,39 @@ const generateContentWithFallback = async (
   throw lastError;
 };
 
+const buildWritingBriefContext = (project?: Project): string => {
+  const brief = project?.writingBrief;
+  if (!brief) return '';
+
+  const entries = [
+    { label: 'Goals', value: brief.goals },
+    { label: 'Audience', value: brief.audience },
+    { label: 'Format/Style', value: brief.format },
+    { label: 'Tone/Voice', value: brief.tone },
+    { label: 'Outline', value: brief.outline },
+  ]
+    .map(({ label, value }) => ({
+      label,
+      value: typeof value === 'string' ? value.trim() : '',
+    }))
+    .filter(({ value }) => value.length > 0)
+    .map(({ label, value }) => `${label}:\n${value}`);
+
+  return entries.length > 0 ? entries.join('\n\n') : '';
+};
+
 export const generateSectionDraft = async (
   project: Project,
   section: Section,
   instructions: string
-): Promise<string> => {
+): Promise<{ text: string; model: string }> => {
   const ai = getAI();
+  const isGeneralWriting = project.projectType === 'GENERAL';
   
   const useReferences = section.useReferences !== false; // Default to true if undefined
   const hasReferences = project.references.length > 0 && useReferences;
+  const writingBrief = buildWritingBriefContext(project);
+  const writingBriefBlock = writingBrief ? `Project Writing Brief:\n${writingBrief}` : '';
 
   // Construct context from project settings and references
   const referenceList = hasReferences
@@ -69,25 +94,35 @@ export const generateSectionDraft = async (
       ).join('\n')
     : "No references provided or references disabled for this section.";
 
-  const systemInstruction = `
-    You are an expert academic research assistant helping to write a manuscript.
-    
-    Project Title: ${project.title}
-    Target Journal/Style: ${project.settings.targetJournal}
-    Tone: ${project.settings.tone}
-    Formatting Requirements: ${project.settings.formattingRequirements}
-
-    Your goal is to draft or refine the "${section.title}" section.
-    
-    ${hasReferences 
+  const systemInstruction = [
+    isGeneralWriting
+      ? 'You are an expert writing assistant helping to draft and refine a document.'
+      : 'You are an expert academic research assistant helping to write a manuscript.',
+    '',
+    `Project Title: ${project.title}`,
+    ...(isGeneralWriting
+      ? []
+      : [
+          `Target Journal/Style: ${project.settings.targetJournal}`,
+          `Tone: ${project.settings.tone}`,
+          `Formatting Requirements: ${project.settings.formattingRequirements}`,
+        ]),
+    '',
+    `Your goal is to draft or refine the "${section.title}" section.`,
+    '',
+    hasReferences
       ? `You have access to a list of provided references. You MUST cite these references in the text where appropriate to support your statements.
-         IMPORTANT: You must use the following citation format exactly: [[ref:RefID]].
-         Example: "Recent studies have shown X [[ref:1234-abcd]]."
-         Do NOT use formatted citations like "(Smith, 2023)" or "[1]" in the output text. Use only the [[ref:ID]] format.` 
-      : 'Adhere strictly to academic standards. DO NOT include any in-text citations (like [1] or (Author, Year)) because references are disabled or not provided.'}
-  `;
+IMPORTANT: You must use the following citation format exactly: [[ref:RefID]].
+Example: "Recent studies have shown X [[ref:1234-abcd]]."
+Do NOT use formatted citations like "(Smith, 2023)" or "[1]" in the output text. Use only the [[ref:ID]] format.`
+      : isGeneralWriting
+        ? 'Use clear, natural prose. Do NOT invent citations or sources.'
+        : 'Adhere strictly to academic standards. DO NOT include any in-text citations (like [1] or (Author, Year)) because references are disabled or not provided.',
+  ].join('\n');
 
   const prompt = `
+    ${writingBriefBlock}
+
     Current Section Notes/Goal:
     ${section.userNotes}
 
@@ -104,7 +139,7 @@ export const generateSectionDraft = async (
   `;
 
   try {
-    const response = await generateContentWithFallback(ai, {
+    const { response, model } = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -112,7 +147,7 @@ export const generateSectionDraft = async (
         maxOutputTokens: 8192,
       },
     });
-    return response.text || '';
+    return { text: response.text || '', model };
   } catch (error) {
     console.error("Gemini Draft Error:", error);
     throw error;
@@ -122,12 +157,16 @@ export const generateSectionDraft = async (
 export const refineTextSelection = async (
   selection: string,
   instruction: string,
-  fullContext: string
-): Promise<string> => {
+  fullContext: string,
+  project?: Project
+): Promise<{ text: string; model: string }> => {
   const ai = getAI();
+  const isGeneralWriting = project?.projectType === 'GENERAL';
+  const writingBrief = buildWritingBriefContext(project);
+  const writingBriefBlock = writingBrief ? `Project Writing Brief:\n${writingBrief}\n\n` : '';
   
   const prompt = `
-    I have the following text selected from a research manuscript:
+    ${writingBriefBlock}I have the following text selected from a ${isGeneralWriting ? 'document' : 'research manuscript'}:
     "${selection}"
 
     Context (surrounding text):
@@ -139,10 +178,10 @@ export const refineTextSelection = async (
   `;
 
   try {
-    const response = await generateContentWithFallback(ai, {
+    const { response, model } = await generateContentWithFallback(ai, {
       contents: prompt,
     });
-    return response.text || '';
+    return { text: response.text || '', model };
   } catch (error) {
     console.error("Gemini Refine Error:", error);
     throw error;

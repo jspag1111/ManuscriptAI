@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, Eye, EyeOff, FileText, History, PanelLeft, Quote, Save, Search, Sparkles, ToggleLeft, ToggleRight, Wand2, X } from 'lucide-react';
-import { AttributedDiffViewer } from './AttributedDiffViewer';
+import { BookOpen, Bot, ChevronDown, Eye, EyeOff, FileText, History, MessageSquareText, PanelLeft, Quote, Save, Search, ToggleLeft, ToggleRight, Wand2, X } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
+import { AiReviewOverlay } from './AiReviewOverlay';
+import { ChangePanel } from './ChangePanel';
+import { CommentPanel, type CommentPanelFilter } from './CommentPanel';
 import { Button } from './Button';
-import { DiffViewer } from './DiffViewer';
-import { RichEditor, RichEditorHandle } from './RichEditor';
+import { ProseMirrorEditor, ProseMirrorEditorHandle } from './ProseMirrorEditor';
 import { generateSectionDraft, refineTextSelection } from '@/services/geminiService';
 import { generateId } from '@/services/storageService';
-import { Project, Section, SectionVersion } from '@/types';
+import { buildReplaceAllAiReview, buildReplaceSelectionAiReview } from '@/lib/prosemirror/aiReview';
+import { ChangeActor, Project, Section, SectionChangeEvent, SectionCommentAuthor, SectionCommentMessage, SectionCommentThread, SectionVersion } from '@/types';
 import { getBibliographyOrder } from '@/utils/citationUtils';
 import { calculateTextStats } from '@/utils/textStats';
 
@@ -15,62 +18,108 @@ interface SectionEditorProps {
   project: Project;
   onUpdateSection: (s: Section) => void;
   onViewHistory: () => void;
+  defaultShowDetails?: boolean;
 }
 
 export const SectionEditor: React.FC<SectionEditorProps> = ({
   section,
   project,
   onUpdateSection,
-  onViewHistory
+  onViewHistory,
+  defaultShowDetails = true,
 }) => {
   const [content, setContent] = useState(section.content);
   const [notes, setNotes] = useState(section.userNotes);
   const [isDrafting, setIsDrafting] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
+  const [isAddressingComment, setIsAddressingComment] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState('');
 
   // Selection state for AI refine
-  const [selectionData, setSelectionData] = useState<{ range: any, text: string } | null>(null);
+  const [selectionData, setSelectionData] = useState<{ range: { start: number; end: number } | null; text: string } | null>(null);
 
   const [showCitationModal, setShowCitationModal] = useState(false);
   const [citationSearch, setCitationSearch] = useState('');
 
-  // Review Mode State
-  const [isReviewing, setIsReviewing] = useState(false);
-  const [pendingContent, setPendingContent] = useState<string | null>(null);
-  const [reviewSource, setReviewSource] = useState<'Draft' | 'Refinement' | null>(null);
+  type AiReviewState =
+    | { kind: 'Draft'; baseContent: string; actor: ChangeActor; event: SectionChangeEvent; previewContent: string }
+    | { kind: 'Refinement'; baseContent: string; actor: ChangeActor; event: SectionChangeEvent; previewContent: string; replacementText: string }
+    | { kind: 'CommentAddress'; commentId: string; baseContent: string; actor: ChangeActor; event: SectionChangeEvent; previewContent: string; replacementText: string };
+  const [aiReview, setAiReview] = useState<AiReviewState | null>(null);
+  const isReviewing = aiReview !== null;
 
-  // Popup state for in-text edits
+  // Popup state for in-text actions
   const [popupPosition, setPopupPosition] = useState<{ x: number, y: number } | null>(null);
   const [showRefineInput, setShowRefineInput] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
 
   // Display toggle for citations
   const [showCitations, setShowCitations] = useState(false);
-  const [showWorkingDiff, setShowWorkingDiff] = useState(false);
+  const [showHighlights, setShowHighlights] = useState(false);
   const [showGenerator, setShowGenerator] = useState(() => (section.content ?? '').trim().length === 0);
-  const [showDetails, setShowDetails] = useState(true);
+  const [showDetails, setShowDetails] = useState(defaultShowDetails);
+  const [focusedChangeEventId, setFocusedChangeEventId] = useState<string | null>(null);
 
-  const editorRef = useRef<RichEditorHandle>(null);
+  const editorRef = useRef<ProseMirrorEditorHandle>(null);
+  const { user } = useUser();
+  const [changeEvents, setChangeEvents] = useState(section.changeEvents ?? []);
+  const [commentThreads, setCommentThreads] = useState<SectionCommentThread[]>(section.commentThreads ?? []);
+  const commentThreadsRef = useRef<SectionCommentThread[]>(section.commentThreads ?? []);
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false);
+  const [commentFilter, setCommentFilter] = useState<CommentPanelFilter>('OPEN');
+  const [selectedCommentThreadId, setSelectedCommentThreadId] = useState<string | null>(null);
+
+  const setCommentThreadsSynced = useCallback((nextThreads: SectionCommentThread[]) => {
+    commentThreadsRef.current = nextThreads;
+    setCommentThreads(nextThreads);
+  }, []);
 
   // Computed bibliography order for formatting citations [1-3]
-  // Memoized to prevent RichEditor re-renders that lose selection
+  // Memoized to avoid churn in the editor nodeViews
   const bibliographyOrder = useMemo(() => getBibliographyOrder(project.sections), [project.sections]);
   const contentStats = useMemo(() => calculateTextStats(content), [content]);
   const workingBase = section.currentVersionBase !== undefined ? section.currentVersionBase : section.content;
-  const versionStartedAt = section.currentVersionStartedAt || section.lastModified;
-  const workingDiffSubtitle = versionStartedAt ? `Since ${new Date(versionStartedAt).toLocaleString()}` : undefined;
+
+  const currentCommentAuthor = useMemo<SectionCommentAuthor>(
+    () => ({
+      userId: user?.id || 'unknown',
+      name: user?.fullName || user?.primaryEmailAddress?.emailAddress || null,
+    }),
+    [user?.id, user?.fullName, user?.primaryEmailAddress?.emailAddress]
+  );
+
+  const openCommentCount = useMemo(
+    () => (commentThreads ?? []).filter((t) => t.status !== 'RESOLVED').length,
+    [commentThreads]
+  );
+
+  const selectedCommentThread = useMemo(
+    () => (selectedCommentThreadId ? (commentThreads ?? []).find((t) => t.id === selectedCommentThreadId) ?? null : null),
+    [commentThreads, selectedCommentThreadId]
+  );
+
+  const activeCommentId = selectedCommentThread && selectedCommentThread.status !== 'RESOLVED' ? selectedCommentThread.id : null;
 
   // Sync internal state if section changes prop
   useEffect(() => {
     if (!isReviewing) {
       setContent(section.content);
       setNotes(section.userNotes);
+      setChangeEvents(section.changeEvents ?? []);
       setSelectionData(null);
       setPopupPosition(null);
       setShowRefineInput(false);
+      setShowCommentInput(false);
+      setCommentDraft('');
       editorRef.current?.clearLock();
     }
-  }, [section.id, section.content, section.userNotes, isReviewing]);
+  }, [isReviewing, section.changeEvents, section.content, section.id, section.userNotes]);
+
+  useEffect(() => {
+    if (isReviewing) return;
+    setCommentThreadsSynced(section.commentThreads ?? []);
+  }, [isReviewing, section.commentThreads, section.id, setCommentThreadsSynced]);
 
   useEffect(() => {
     if (section.currentVersionBase === undefined || !section.currentVersionId || !section.currentVersionStartedAt) {
@@ -86,38 +135,58 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
   // Reset review state when switching sections
   useEffect(() => {
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
-    setShowWorkingDiff(false);
+    setAiReview(null);
+    setShowHighlights(false);
+    setSelectedCommentThreadId(null);
     setShowGenerator((section.content ?? '').trim().length === 0);
     // Intentionally only reset when switching sections
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section.id]);
 
   useEffect(() => {
-    if (showWorkingDiff) {
-      setPopupPosition(null);
-      setShowRefineInput(false);
-      editorRef.current?.clearLock();
-    }
-  }, [showWorkingDiff]);
+    if (!showHighlights) return;
+    // When highlights are on, keep the UI focused on reviewability.
+    setPopupPosition(null);
+    setShowRefineInput(false);
+    setShowCommentInput(false);
+    setCommentDraft('');
+    editorRef.current?.clearLock();
+  }, [showHighlights]);
 
-  const handleSave = useCallback(() => {
+  useEffect(() => {
+    if (showHighlights) return;
+    setFocusedChangeEventId(null);
+    editorRef.current?.focusChangeEvent(null);
+  }, [showHighlights]);
+
+  const handleSelectChangeEvent = useCallback((event: SectionChangeEvent) => {
+    const selection = event.selection ?? null;
+    setFocusedChangeEventId((current) => {
+      const next = current === event.id ? null : event.id;
+      editorRef.current?.focusChangeEvent(next, next ? selection : null);
+      return next;
+    });
+  }, []);
+
+  const handleSave = useCallback((overrides?: { commentThreads?: SectionCommentThread[]; changeEvents?: SectionChangeEvent[] }) => {
     const ensureVersionBase = section.currentVersionBase !== undefined ? section.currentVersionBase : content;
     const ensureVersionId = section.currentVersionId || section.id || generateId();
     const ensureStartedAt = section.currentVersionStartedAt || section.lastModified || Date.now();
+    const nextChangeEvents = overrides?.changeEvents ?? changeEvents;
+    const nextCommentThreads = overrides?.commentThreads ?? commentThreads;
     onUpdateSection({
       ...section,
       content,
       userNotes: notes,
+      changeEvents: nextChangeEvents,
+      commentThreads: nextCommentThreads,
       lastModified: Date.now(),
       currentVersionBase: ensureVersionBase,
       currentVersionId: ensureVersionId,
       currentVersionStartedAt: ensureStartedAt,
       lastLlmContent: section.lastLlmContent ?? null
     });
-  }, [content, notes, onUpdateSection, section]);
+  }, [changeEvents, commentThreads, content, notes, onUpdateSection, section]);
 
   // Auto-save effect 
   useEffect(() => {
@@ -131,14 +200,25 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   }, [content, notes, isReviewing, section.content, section.userNotes, handleSave]);
 
   const handleDraft = async () => {
-    setShowWorkingDiff(false);
     setIsDrafting(true);
     handleSave();
     try {
-      const draft = await generateSectionDraft(project, { ...section, userNotes: notes, content }, "Draft or improve the section based on the notes.");
-      setPendingContent(draft);
-      setReviewSource('Draft');
-      setIsReviewing(true);
+      const draftInstruction = project.projectType === 'GENERAL'
+        ? 'Draft or improve the text based on the writing brief and notes.'
+        : 'Draft or improve the section based on the notes.';
+      const { text, model } = await generateSectionDraft(
+        project,
+        { ...section, userNotes: notes, content },
+        draftInstruction
+      );
+      const actor: ChangeActor = { type: 'LLM', model };
+      const { previewContent, event } = buildReplaceAllAiReview({
+        baseContent: content,
+        nextContent: text,
+        actor,
+        request: `Gemini Drafter\nInstruction: ${draftInstruction}\n\nNotes:\n${notes ?? ''}`.trim(),
+      });
+      setAiReview({ kind: 'Draft', baseContent: content, actor, event, previewContent });
     } catch (e) {
       alert("Failed to draft content.");
     } finally {
@@ -147,7 +227,22 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   };
 
   const handleAcceptChange = () => {
-    if (pendingContent === null) return;
+    if (!aiReview) return;
+
+    const cloneCommentThreads = (threads: SectionCommentThread[]) =>
+      (threads ?? []).map((thread) => ({
+        ...thread,
+        createdBy: { ...thread.createdBy },
+        resolvedBy: thread.resolvedBy ? { ...thread.resolvedBy } : null,
+        anchor: thread.anchor ? { ...thread.anchor } : null,
+        messages: (thread.messages ?? []).map((msg) => ({
+          ...msg,
+          author: { ...msg.author },
+        })),
+        aiEdits: (thread.aiEdits ?? []).map((edit) => ({ ...edit })),
+      }));
+
+    const snapshotCommentThreads = cloneCommentThreads(commentThreadsRef.current ?? []);
 
     const newVersions = [...section.versions];
     if (content.trim()) {
@@ -156,40 +251,80 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         timestamp: Date.now(),
         content: content,
         notes: notes,
-        commitMessage: `Auto-save before AI ${reviewSource}`,
-        source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
+        commitMessage: `Auto-save before AI ${aiReview.kind}`,
+        source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER',
+        baseContent: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
+        changeEvents: Array.isArray(changeEvents) ? [...changeEvents] : [],
+        commentThreads: snapshotCommentThreads,
+        versionStartedAt: section.currentVersionStartedAt || section.lastModified || Date.now(),
       });
     }
 
-    const newContent = pendingContent;
+    const nextContent = aiReview.previewContent;
+    const nextChangeEvents = changeEvents.some((evt) => evt.id === aiReview.event.id)
+      ? changeEvents
+      : [aiReview.event, ...changeEvents];
+    if (aiReview.kind === 'Draft') {
+      editorRef.current?.applyContentReplacement(nextContent, aiReview.actor, aiReview.event);
+    } else {
+      editorRef.current?.applyLockedSelectionReplacement(aiReview.replacementText, aiReview.actor, aiReview.event);
+    }
 
-    setContent(newContent);
+    let nextCommentThreads = commentThreadsRef.current ?? [];
+    if (aiReview.kind === 'CommentAddress') {
+      const now = Date.now();
+      nextCommentThreads = nextCommentThreads.map((thread) => {
+        if (thread.id !== aiReview.commentId) return thread;
+        const aiEdits = [
+          ...(thread.aiEdits ?? []),
+          {
+            id: generateId(),
+            createdAt: now,
+            model: aiReview.actor.type === 'LLM' ? aiReview.actor.model : 'unknown',
+            changeEventId: aiReview.event.id,
+          },
+        ];
+        return {
+          ...thread,
+          updatedAt: now,
+          aiEdits,
+        };
+      });
+      setCommentThreadsSynced(nextCommentThreads);
+    }
+
     onUpdateSection({
       ...section,
-      content: newContent,
+      content: nextContent,
       versions: newVersions,
       lastModified: Date.now(),
       currentVersionBase: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
       currentVersionId: section.currentVersionId || section.id || generateId(),
       currentVersionStartedAt: section.currentVersionStartedAt || Date.now(),
-      lastLlmContent: newContent
+      lastLlmContent: nextContent,
+      changeEvents: nextChangeEvents,
+      commentThreads: nextCommentThreads,
     });
 
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
+    setAiReview(null);
+    setRefinePrompt('');
+    setSelectionData(null);
+    setPopupPosition(null);
+    setShowRefineInput(false);
+    setShowCommentInput(false);
+    setCommentDraft('');
   };
 
   const handleRejectChange = () => {
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
+    setAiReview(null);
+    setShowCommentInput(false);
+    setCommentDraft('');
     editorRef.current?.clearLock();
   };
 
-  const handleSelect = (range: any, text: string) => {
+  const handleSelect = (range: { start: number; end: number } | null, text: string) => {
     // If showing input, ignore selection updates (input field is focused)
-    if (showRefineInput) return;
+    if (showRefineInput || showCommentInput) return;
 
     if (text) {
       setSelectionData({ range, text });
@@ -201,7 +336,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
 
   const handleMouseUp = (e: React.MouseEvent) => {
     // If editing input, don't re-trigger or move popup
-    if (showRefineInput) return;
+    if (showRefineInput || showCommentInput) return;
 
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed) {
@@ -212,13 +347,13 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     } else {
       setPopupPosition(null);
       setShowRefineInput(false);
+      setShowCommentInput(false);
+      setCommentDraft('');
     }
   };
 
-  const insertText = (text: string) => {
-    if (editorRef.current) {
-      editorRef.current.insertAtCursor(text);
-    }
+  const insertCitation = (id: string) => {
+    editorRef.current?.insertCitation([id]);
   };
 
   const handleStartRefine = () => {
@@ -229,6 +364,8 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     // If lockedText is null, it means selection was lost, so we shouldn't show input.
     if (lockedText !== null) {
       setShowRefineInput(true);
+      setShowCommentInput(false);
+      setCommentDraft('');
     }
   };
 
@@ -240,24 +377,97 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     editorRef.current?.clearLock();
   };
 
+  const handleStartComment = () => {
+    const lockedText = editorRef.current?.lockSelection();
+    if (lockedText !== null) {
+      setShowCommentInput(true);
+      setShowRefineInput(false);
+      setRefinePrompt('');
+    }
+  };
+
+  const handleCancelComment = () => {
+    setShowCommentInput(false);
+    setCommentDraft('');
+    setPopupPosition(null);
+    setSelectionData(null);
+    editorRef.current?.clearLock();
+  };
+
+  const handleAddComment = () => {
+    const draft = commentDraft.trim();
+    const range = selectionData?.range;
+    if (!draft || !range) return;
+
+    const now = Date.now();
+    const anchorText = selectionData?.text ?? '';
+    const excerpt = anchorText.replace(/\s+/g, ' ').trim().slice(0, 160);
+    const message: SectionCommentMessage = {
+      id: generateId(),
+      createdAt: now,
+      author: currentCommentAuthor,
+      content: draft,
+    };
+    const thread: SectionCommentThread = {
+      id: generateId(),
+      createdAt: now,
+      updatedAt: now,
+      createdBy: currentCommentAuthor,
+      anchor: {
+        from: range.start,
+        to: range.end,
+        text: anchorText,
+        orphaned: false,
+      },
+      excerpt,
+      messages: [message],
+      status: 'OPEN',
+      resolvedAt: null,
+      resolvedBy: null,
+      aiEdits: [],
+    };
+
+    const nextThreads = [thread, ...(commentThreads ?? [])];
+    setCommentThreadsSynced(nextThreads);
+    setSelectedCommentThreadId(thread.id);
+    setShowCommentsPanel(true);
+    handleSave({ commentThreads: nextThreads });
+
+    setShowCommentInput(false);
+    setCommentDraft('');
+    setPopupPosition(null);
+    setSelectionData(null);
+    editorRef.current?.scrollToRange({ from: range.start, to: range.end });
+  };
+
   const handleRefine = async () => {
     if (!selectionData || !refinePrompt) return;
     setIsRefining(true);
     try {
-      const refined = await refineTextSelection(selectionData.text, refinePrompt, content);
-
-      // Use RichEditor to replace the locked span and get full new content
-      let newContent = content;
-      if (editorRef.current) {
-        newContent = editorRef.current.replaceLockedSelection(refined);
-      } else {
-        // Fallback
-        newContent = content.replace(selectionData.text, refined);
+      const { text, model } = await refineTextSelection(selectionData.text, refinePrompt, content, project);
+      const range = selectionData.range;
+      if (!range) {
+        throw new Error('Selection range missing for refinement.');
       }
 
-      setPendingContent(newContent);
-      setReviewSource('Refinement');
-      setIsReviewing(true);
+      const actor: ChangeActor = { type: 'LLM', model };
+      const { previewContent, event } = buildReplaceSelectionAiReview({
+        baseContent: content,
+        from: range.start,
+        to: range.end,
+        replacementText: text,
+        actor,
+        request: refinePrompt,
+      });
+
+      setAiReview({
+        kind: 'Refinement',
+        baseContent: content,
+        actor,
+        event,
+        previewContent,
+        replacementText: text,
+      });
 
       setRefinePrompt('');
       setSelectionData(null);
@@ -279,7 +489,18 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       content,
       notes,
       commitMessage: 'Saved before starting new version',
-      source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER'
+      source: section.lastLlmContent && section.lastLlmContent === content ? 'LLM' : 'USER',
+      baseContent: section.currentVersionBase !== undefined ? section.currentVersionBase : content,
+      changeEvents: Array.isArray(changeEvents) ? [...changeEvents] : [],
+      commentThreads: (commentThreadsRef.current ?? []).map((thread) => ({
+        ...thread,
+        createdBy: { ...thread.createdBy },
+        resolvedBy: thread.resolvedBy ? { ...thread.resolvedBy } : null,
+        anchor: thread.anchor ? { ...thread.anchor } : null,
+        messages: (thread.messages ?? []).map((msg) => ({ ...msg, author: { ...msg.author } })),
+        aiEdits: (thread.aiEdits ?? []).map((edit) => ({ ...edit })),
+      })),
+      versionStartedAt: section.currentVersionStartedAt || section.lastModified || Date.now(),
     };
 
     const updatedVersions: SectionVersion[] = hasSnapshotContent ? [snapshotVersion, ...section.versions] : [...section.versions];
@@ -288,20 +509,200 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
       ...section,
       content,
       userNotes: notes,
+      commentThreads: commentThreadsRef.current ?? [],
       versions: updatedVersions,
       currentVersionBase: content,
       currentVersionStartedAt: Date.now(),
       currentVersionId: generateId(),
       lastLlmContent: null,
+      changeEvents: [],
       lastModified: Date.now()
     };
 
-    setShowWorkingDiff(false);
-    setIsReviewing(false);
-    setPendingContent(null);
-    setReviewSource(null);
+    setChangeEvents([]);
+    setShowHighlights(false);
+    setAiReview(null);
     onUpdateSection(nextSection);
   };
+
+  const handleSelectCommentThread = useCallback(
+    (threadId: string | null) => {
+      setPopupPosition(null);
+      setShowRefineInput(false);
+      setShowCommentInput(false);
+      setRefinePrompt('');
+      setCommentDraft('');
+      setSelectedCommentThreadId(threadId);
+      if (!threadId) {
+        return;
+      }
+      const thread = (commentThreads ?? []).find((t) => t.id === threadId) ?? null;
+      const anchor = thread?.anchor;
+      if (!anchor || anchor.orphaned) return;
+      editorRef.current?.scrollToRange({ from: anchor.from, to: anchor.to });
+    },
+    [commentThreads]
+  );
+
+  const handleReplyToComment = useCallback(
+    (threadId: string, text: string) => {
+      const now = Date.now();
+      const reply: SectionCommentMessage = {
+        id: generateId(),
+        createdAt: now,
+        author: currentCommentAuthor,
+        content: text,
+      };
+      const nextThreads = (commentThreads ?? []).map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              updatedAt: now,
+              messages: [...(thread.messages ?? []), reply],
+            }
+          : thread
+      );
+      setCommentThreadsSynced(nextThreads);
+      handleSave({ commentThreads: nextThreads });
+    },
+    [commentThreads, currentCommentAuthor, handleSave, setCommentThreadsSynced]
+  );
+
+  const handleResolveComment = useCallback(
+    (threadId: string) => {
+      const now = Date.now();
+      const nextThreads = (commentThreads ?? []).map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              status: 'RESOLVED' as const,
+              updatedAt: now,
+              resolvedAt: now,
+              resolvedBy: currentCommentAuthor,
+            }
+          : thread
+      );
+      setCommentThreadsSynced(nextThreads);
+      handleSave({ commentThreads: nextThreads });
+    },
+    [commentThreads, currentCommentAuthor, handleSave, setCommentThreadsSynced]
+  );
+
+  const handleReopenComment = useCallback(
+    (threadId: string) => {
+      const now = Date.now();
+      const nextThreads = (commentThreads ?? []).map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              status: 'OPEN' as const,
+              updatedAt: now,
+              resolvedAt: null,
+              resolvedBy: null,
+            }
+          : thread
+      );
+      setCommentThreadsSynced(nextThreads);
+      handleSave({ commentThreads: nextThreads });
+    },
+    [commentThreads, handleSave, setCommentThreadsSynced]
+  );
+
+  const handleDeleteCommentThread = useCallback(
+    (threadId: string) => {
+      const nextThreads = (commentThreads ?? []).filter((thread) => thread.id !== threadId);
+      setCommentThreadsSynced(nextThreads);
+      setSelectedCommentThreadId((current) => (current === threadId ? null : current));
+      handleSave({ commentThreads: nextThreads });
+    },
+    [commentThreads, handleSave, setCommentThreadsSynced]
+  );
+
+  const handleCloseCommentsPanel = useCallback(() => {
+    setShowCommentsPanel(false);
+    setSelectedCommentThreadId(null);
+  }, []);
+
+  const handleAddressCommentWithAi = useCallback(
+    async (threadId: string) => {
+      if (isReviewing || isAddressingComment) return;
+      const thread = (commentThreadsRef.current ?? []).find((t) => t.id === threadId) ?? null;
+      if (!thread) return;
+      if (thread.status === 'RESOLVED') return;
+
+      const anchor = thread.anchor;
+      if (!anchor || anchor.orphaned) {
+        alert('This comment is no longer anchored to a valid text range. Try adding a new comment on the updated text.');
+        return;
+      }
+
+      setIsAddressingComment(true);
+      try {
+        setPopupPosition(null);
+        setShowRefineInput(false);
+        setShowCommentInput(false);
+        setRefinePrompt('');
+        setCommentDraft('');
+        setShowCommentsPanel(true);
+        setSelectedCommentThreadId(threadId);
+
+        editorRef.current?.scrollToRange({ from: anchor.from, to: anchor.to });
+
+        const selectedText = editorRef.current?.getTextInRange({ from: anchor.from, to: anchor.to }) || anchor.text;
+        if (!selectedText.trim()) {
+          alert('Unable to read the selected text for this comment. Try re-selecting the text and re-adding the comment.');
+          return;
+        }
+
+        const threadTranscript = (thread.messages ?? [])
+          .map((msg) => {
+            const name = msg.author.name?.trim() || msg.author.userId || 'User';
+            return `${name}: ${msg.content}`;
+          })
+          .join('\n');
+
+        const instruction = [
+          'Address the following comment thread by revising ONLY the selected text.',
+          project.projectType === 'GENERAL'
+            ? 'Keep the writing aligned with the project writing brief and preserve any citation markers like [[ref:ID]].'
+            : 'Keep the writing academic and preserve any citation markers like [[ref:ID]].',
+          'If the comment requests clarification, prefer adding a brief clarifying sentence rather than rewriting everything.',
+          '',
+          'Comment thread:',
+          threadTranscript || '(no messages)',
+        ].join('\n');
+
+        const { text, model } = await refineTextSelection(selectedText, instruction, content, project);
+        const actor: ChangeActor = { type: 'LLM', model };
+
+        const { previewContent, event } = buildReplaceSelectionAiReview({
+          baseContent: content,
+          from: anchor.from,
+          to: anchor.to,
+          replacementText: text,
+          actor,
+          commentId: threadId,
+          request: `Comment AI • Thread ${threadId}\n\n${instruction}`,
+        });
+
+        setAiReview({
+          kind: 'CommentAddress',
+          commentId: threadId,
+          baseContent: content,
+          actor,
+          event,
+          previewContent,
+          replacementText: text,
+        });
+      } catch (e) {
+        console.error('Failed to address comment with AI', e);
+        alert('Failed to address comment with AI.');
+      } finally {
+        setIsAddressingComment(false);
+      }
+    },
+    [content, isAddressingComment, isReviewing, project]
+  );
 
   const filteredReferences = project.references.filter(r =>
     r.title.toLowerCase().includes(citationSearch.toLowerCase()) ||
@@ -381,28 +782,11 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         </div>
       )}
 
-      {/* Right Pane: Editor or Diff Viewer */}
+      {/* Right Pane: Editor */}
       <div className="flex-1 min-h-[60vh] flex flex-col relative bg-white/90 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        {isReviewing && pendingContent !== null ? (
-          <DiffViewer
-            original={content}
-            modified={pendingContent}
-            onAccept={handleAcceptChange}
-            onReject={handleRejectChange}
-          />
-        ) : showWorkingDiff ? (
-          <AttributedDiffViewer
-            base={workingBase}
-            target={content}
-            title="Working Draft Diff"
-            subtitle={workingDiffSubtitle}
-            onClose={() => setShowWorkingDiff(false)}
-            closeLabel="Hide Diff"
-          />
-        ) : (
-          <>
-            {/* Toolbar */}
-            <div className="h-12 border-b border-slate-200 flex items-center px-4 gap-3 bg-slate-50 justify-between">
+        <>
+          {/* Toolbar */}
+          <div className="h-12 border-b border-slate-200 flex items-center px-4 gap-3 bg-slate-50 justify-between">
               <div className="flex items-center gap-2 flex-1 overflow-hidden">
                 <button
                   onClick={() => setShowDetails(!showDetails)}
@@ -448,26 +832,55 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   <button onClick={handleStartNewVersion} disabled={isReviewing} className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Start New Version">
                     <FileText size={18} />
                   </button>
-                  <button onClick={handleSave} disabled={isReviewing} className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Force Save">
+                  <button onClick={() => handleSave()} disabled={isReviewing} className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Force Save">
                     <Save size={18} />
                   </button>
                 </div>
 
                 <button
-                  onClick={() => setShowWorkingDiff(!showWorkingDiff)}
+                  onClick={() => {
+                    if (showCommentsPanel) {
+                      handleCloseCommentsPanel();
+                      return;
+                    }
+                    setPopupPosition(null);
+                    setShowRefineInput(false);
+                    setShowCommentInput(false);
+                    setRefinePrompt('');
+                    setCommentDraft('');
+                    setShowCommentsPanel(true);
+                  }}
                   disabled={isReviewing}
-                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors border ${showWorkingDiff ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300 hover:bg-slate-100'}`}
-                  title="Toggle working draft diff"
+                  className={`relative p-1.5 rounded transition-colors ${
+                    showCommentsPanel ? 'text-amber-800 bg-amber-50' : 'text-slate-600 hover:text-amber-800 hover:bg-amber-50'
+                  }`}
+                  title={showCommentsPanel ? 'Hide comments' : 'Show comments'}
                 >
-                  {showWorkingDiff ? <EyeOff size={18} /> : <Eye size={18} />}
-                  {showWorkingDiff ? 'Hide Diff' : 'Show Diff'}
+                  <MessageSquareText size={18} />
+                  {openCommentCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] leading-4 text-center font-bold shadow">
+                      {openCommentCount > 99 ? '99+' : openCommentCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setShowHighlights(!showHighlights)}
+                  disabled={isReviewing}
+                  className={`flex items-center gap-2 px-2 py-1 rounded text-xs font-medium transition-colors border ${showHighlights ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300 hover:bg-slate-100'}`}
+                  title="Toggle highlights for tracked edits"
+                >
+                  {showHighlights ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showHighlights ? 'Hide Edits' : 'Show Edits'}
                 </button>
               </div>
-            </div>
+          </div>
 
-            {/* Rich Editor Component */}
-            <div className="flex-1 overflow-hidden relative">
-              <RichEditor
+          {/* Rich Editor Component */}
+          <div className="flex-1 overflow-hidden relative flex">
+            <div className={`flex-1 overflow-hidden ${isReviewing ? 'pointer-events-none opacity-40' : ''}`}>
+              <ProseMirrorEditor
+                key={`${section.id}:${section.currentVersionId || ''}`}
                 ref={editorRef}
                 className="h-full overflow-y-auto"
                 content={content}
@@ -478,60 +891,199 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                 onMouseUp={handleMouseUp}
                 placeholder="Start writing..."
                 renderCitations={showCitations}
+                comments={{
+                  threads: commentThreads,
+                  selectedThreadId: selectedCommentThreadId,
+                  viewMode: showCommentsPanel ? 'HIGHLIGHTS' : 'NONE',
+                  onSelectThread: (threadId) => {
+                    const thread = (commentThreadsRef.current ?? []).find((t) => t.id === threadId) ?? null;
+                    if (thread && commentFilter !== 'ALL') {
+                      if (commentFilter === 'OPEN' && thread.status === 'RESOLVED') setCommentFilter('ALL');
+                      if (commentFilter === 'RESOLVED' && thread.status !== 'RESOLVED') setCommentFilter('ALL');
+                    }
+                    setSelectedCommentThreadId(threadId);
+                  },
+                  onThreadsChange: setCommentThreadsSynced,
+                }}
+                trackChanges={{
+                  baseContent: workingBase ?? '',
+                  events: changeEvents,
+                  actor: {
+                    type: 'USER',
+                    userId: user?.id || 'unknown',
+                    name: user?.fullName || user?.primaryEmailAddress?.emailAddress || null,
+                  },
+                  showHighlights,
+                  onEventsChange: setChangeEvents,
+                  activeCommentId,
+                }}
               />
             </div>
+            {showHighlights && !isReviewing && !showCommentsPanel && (
+              <div className="hidden lg:flex">
+                <ChangePanel events={changeEvents} selectedEventId={focusedChangeEventId} onSelectEvent={handleSelectChangeEvent} />
+              </div>
+            )}
+            {showCommentsPanel && !isReviewing && (
+              <div className="hidden lg:flex">
+                <CommentPanel
+                  threads={commentThreads}
+                  currentUserId={currentCommentAuthor.userId}
+                  selectedThreadId={selectedCommentThreadId}
+                  filter={commentFilter}
+                  onChangeFilter={setCommentFilter}
+                  onSelectThread={handleSelectCommentThread}
+                  onReply={handleReplyToComment}
+                  onResolve={handleResolveComment}
+                  onReopen={handleReopenComment}
+                  onDeleteThread={handleDeleteCommentThread}
+                  onClose={handleCloseCommentsPanel}
+                  onAddressWithAi={handleAddressCommentWithAi}
+                  aiBusy={isAddressingComment}
+                />
+              </div>
+            )}
+          </div>
 
-            {/* Floating AI Edit Popup */}
-            {popupPosition && selectionData && (
+          {showCommentsPanel && !isReviewing && (
+            <div
+              className="lg:hidden fixed inset-0 z-50 bg-black/20 backdrop-blur-[1px]"
+              onClick={handleCloseCommentsPanel}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="absolute inset-y-0 right-0 w-full max-w-[420px] shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <CommentPanel
+                  threads={commentThreads}
+                  currentUserId={currentCommentAuthor.userId}
+                  selectedThreadId={selectedCommentThreadId}
+                  filter={commentFilter}
+                  onChangeFilter={setCommentFilter}
+                  onSelectThread={handleSelectCommentThread}
+                  onReply={handleReplyToComment}
+                  onResolve={handleResolveComment}
+                  onReopen={handleReopenComment}
+                  onDeleteThread={handleDeleteCommentThread}
+                  onClose={handleCloseCommentsPanel}
+                  onAddressWithAi={handleAddressCommentWithAi}
+                  aiBusy={isAddressingComment}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Floating AI Edit Popup */}
+          {!isReviewing && popupPosition && selectionData && (
               <div
                 className="fixed z-50 bg-white shadow-xl border border-slate-200 rounded-lg p-1.5 animate-in fade-in zoom-in-95 duration-200 flex items-center gap-2"
                 style={{ left: popupPosition.x, top: popupPosition.y, transform: 'translate(-50%, -100%)' }}
               >
-                {!showRefineInput ? (
-                  <button
-                    onMouseDown={(e) => {
-                      // Prevent default to ensure focus doesn't leave editor immediately
-                      // allowing lockSelection to capture the current selection
-                      e.preventDefault();
-                      handleStartRefine();
-                    }}
-                    className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-50 transition-colors"
-                  >
-                    <Sparkles size={16} className="text-blue-500" />
-                    Edit with AI
-                  </button>
-                ) : (
+                {!showRefineInput && !showCommentInput ? (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleStartRefine();
+                      }}
+                      className="h-9 w-9 rounded-md border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-200 transition-colors flex items-center justify-center"
+                      title="Edit selection with AI"
+                    >
+                      <Bot size={16} className="text-blue-700" />
+                    </button>
+                    <div className="h-7 w-px bg-slate-200" />
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleStartComment();
+                      }}
+                      className="h-9 w-9 rounded-md border border-slate-200 bg-white hover:bg-amber-50 hover:border-amber-200 transition-colors flex items-center justify-center"
+                      title="Add comment"
+                    >
+                      <MessageSquareText size={16} className="text-amber-800" />
+                    </button>
+                  </div>
+                ) : showRefineInput ? (
                   <div className="flex items-center gap-2">
                     <input
                       autoFocus
                       className="text-sm border border-slate-300 rounded px-2 py-1.5 w-64 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Describe change..."
+                      placeholder="Describe the edit…"
                       value={refinePrompt}
-                      onChange={e => setRefinePrompt(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleRefine()}
+                      onChange={(e) => setRefinePrompt(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleRefine()}
                     />
                     <Button size="sm" onClick={handleRefine} isLoading={isRefining} disabled={!refinePrompt}>
                       Go
                     </Button>
-                    <button onClick={handleCancelRefine} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded">
+                    <button
+                      type="button"
+                      onClick={handleCancelRefine}
+                      className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded"
+                      title="Cancel"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      className="text-sm border border-slate-300 rounded px-2 py-2 w-72 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+                      placeholder="Leave a comment…"
+                      value={commentDraft}
+                      onChange={(e) => setCommentDraft(e.target.value)}
+                    />
+                    <Button size="sm" onClick={handleAddComment} disabled={!commentDraft.trim()}>
+                      Comment
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={handleCancelComment}
+                      className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded"
+                      title="Cancel"
+                    >
                       <X size={16} />
                     </button>
                   </div>
                 )}
               </div>
-            )}
+          )}
 
-            {/* Footer Stats */}
-            <div className="h-12 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 bg-slate-50 justify-between flex-wrap gap-2">
+          {/* Footer Stats */}
+          <div className="h-12 border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 bg-slate-50 justify-between flex-wrap gap-2">
               <div className="flex items-center gap-4">
                 <span><span className="font-semibold text-slate-700">{contentStats.words}</span> words</span>
                 <span><span className="font-semibold text-slate-700">{contentStats.charsWithSpaces}</span> chars (with spaces)</span>
                 <span><span className="font-semibold text-slate-700">{contentStats.charsWithoutSpaces}</span> chars (no spaces)</span>
               </div>
               <span className="text-slate-600 font-medium">Saved</span>
-            </div>
-          </>
-        )}
+          </div>
+
+          {aiReview && (
+            <AiReviewOverlay
+              baseContent={aiReview.baseContent}
+              previewContent={aiReview.previewContent}
+              event={aiReview.event}
+              bibliographyOrder={bibliographyOrder}
+              references={project.references}
+              title={
+                aiReview.kind === 'Draft'
+                  ? 'Review AI draft'
+                  : aiReview.kind === 'CommentAddress'
+                    ? 'Review AI edit (comment)'
+                    : 'Review AI refinement'
+              }
+              onAccept={handleAcceptChange}
+              onDiscard={handleRejectChange}
+            />
+          )}
+        </>
       </div>
 
       {/* Citation Modal */}
@@ -563,8 +1115,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                   key={ref.id}
                   className="w-full text-left p-3 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-200 transition-all group"
                   onClick={() => {
-                    // Insert text at cursor using Ref
-                    insertText(` [[ref:${ref.id}]]`);
+                    insertCitation(ref.id);
                     setShowCitationModal(false);
                   }}
                 >

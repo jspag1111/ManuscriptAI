@@ -15,6 +15,77 @@ export interface Reference {
 
 export type ChangeSource = 'LLM' | 'USER';
 
+export type ChangeActor =
+  | { type: 'USER'; userId: string; name?: string | null }
+  | { type: 'LLM'; model: string };
+
+export interface SectionChangeEvent {
+  id: string;
+  timestamp: number;
+  actor: ChangeActor;
+  selection?: { from: number; to: number } | null;
+  /**
+   * If present, indicates this edit was made while addressing a specific comment thread.
+   * Kept optional for backwards compatibility with persisted events.
+   */
+  commentId?: string | null;
+  /**
+   * For LLM-attributed edits, stores the user-provided request/prompt (kept optional
+   * for backwards compatibility with persisted events).
+   */
+  request?: string | null;
+  steps: unknown[];
+}
+
+export type CommentThreadStatus = 'OPEN' | 'RESOLVED';
+
+export interface SectionCommentAuthor {
+  userId: string;
+  name?: string | null;
+}
+
+export interface SectionCommentAnchor {
+  from: number;
+  to: number;
+  /**
+   * Snapshot of the referenced text at creation time (best-effort).
+   * Used to help users understand what the comment referred to even if the doc changes.
+   */
+  text: string;
+  /**
+   * If true, the original anchor range no longer exists due to edits.
+   */
+  orphaned?: boolean;
+}
+
+export interface SectionCommentMessage {
+  id: string;
+  createdAt: number;
+  author: SectionCommentAuthor;
+  content: string;
+}
+
+export interface SectionCommentAiEdit {
+  id: string;
+  createdAt: number;
+  model: string;
+  changeEventId: string;
+}
+
+export interface SectionCommentThread {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  createdBy: SectionCommentAuthor;
+  anchor: SectionCommentAnchor | null;
+  excerpt: string;
+  messages: SectionCommentMessage[];
+  status: CommentThreadStatus;
+  resolvedAt?: number | null;
+  resolvedBy?: SectionCommentAuthor | null;
+  aiEdits?: SectionCommentAiEdit[];
+}
+
 export interface SectionVersion {
   id: string;
   timestamp: number;
@@ -22,6 +93,10 @@ export interface SectionVersion {
   notes: string; // The prompts/notes used to generate this
   commitMessage?: string;
   source?: ChangeSource;
+  baseContent?: string;
+  changeEvents?: SectionChangeEvent[];
+  commentThreads?: SectionCommentThread[];
+  versionStartedAt?: number;
 }
 
 export interface Section {
@@ -37,12 +112,24 @@ export interface Section {
   currentVersionBase?: string;
   currentVersionStartedAt?: number;
   lastLlmContent?: string | null;
+  changeEvents?: SectionChangeEvent[];
+  commentThreads?: SectionCommentThread[];
 }
 
 export interface ProjectSettings {
   targetJournal: string;
   wordCountTarget: number;
   formattingRequirements: string;
+  tone: string;
+}
+
+export type ProjectType = 'MANUSCRIPT' | 'GENERAL';
+
+export interface WritingBrief {
+  goals: string;
+  audience: string;
+  format: string;
+  outline: string;
   tone: string;
 }
 
@@ -74,6 +161,8 @@ export interface Project {
   description: string;
   created: number;
   lastModified: number;
+  projectType?: ProjectType;
+  writingBrief?: WritingBrief;
   settings: ProjectSettings;
   manuscriptMetadata: ManuscriptMetadata;
   sections: Section[];
@@ -120,4 +209,6 @@ export enum SectionView {
   VERSIONS = 'VERSIONS',
   FIGURES = 'FIGURES',
   METADATA = 'METADATA',
+  REFERENCES = 'REFERENCES',
+  MANUSCRIPT = 'MANUSCRIPT',
 }
