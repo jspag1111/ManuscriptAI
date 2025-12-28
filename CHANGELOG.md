@@ -1,3 +1,8 @@
+## 2025-12-28 05:00 UTC
+- (Commit: codex/add-pubmed-assistant-chat) Added a PubMed Assistant chat panel with a persistent article board and multi-chat sessions alongside the existing reference manager.
+- (Commit: codex/add-pubmed-assistant-chat) Added a Gemini tool-use PubMed agent API with E-utilities wrappers for search, summaries, abstracts, related lookups, and board removals.
+- (Commit: codex/add-pubmed-assistant-chat) Extended project normalization to persist PubMed chats/articles and updated docs for the new assistant.
+
 ## 2025-12-24 03:11 UTC
 - (Commit: codex/add-general-writing-studio) Added a general writing workspace at `/writing` with a brief-first panel, outline capture, and draft/brief/history navigation while reusing the ProseMirror editor, comments, tracked changes, and version history.
 - (Commit: codex/add-general-writing-studio) Added project-level writing brief fields that feed Gemini drafting and refinement prompts, plus updated navigation links, docs, and tests.

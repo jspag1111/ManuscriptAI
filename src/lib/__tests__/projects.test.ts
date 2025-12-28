@@ -42,5 +42,8 @@ describe('normalizeProject', () => {
     expect(normalized.sections[0].changeEvents).toEqual([]);
     expect(normalized.figures[0].label).toBe('Table 1');
     expect(normalized.figures[0].includeInWordCount).toBe(false);
+    expect(normalized.pubmedArticles).toEqual([]);
+    expect(normalized.pubmedChats).toEqual([]);
+    expect(normalized.pubmedActiveChatId).toBeNull();
   });
 });

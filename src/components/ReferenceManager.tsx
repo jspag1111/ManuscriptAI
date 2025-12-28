@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, Copy, Download, ExternalLink, Globe, Library, ListOrdered, Plus, Search, Sparkles, Tag, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import { Button } from './Button';
+import PubmedAssistantPanel from './PubmedAssistantPanel';
 import { summarizeReference } from '@/services/geminiService';
 import { fetchBatchReferenceMetadata, importReferenceMetadata } from '@/services/referenceService';
 import { generateId } from '@/services/storageService';
@@ -14,7 +15,7 @@ interface ReferenceManagerProps {
 }
 
 export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onUpdateProject }) => {
-  const [activeTab, setActiveTab] = useState<'library' | 'bibliography' | 'search'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'bibliography' | 'search' | 'assistant'>('library');
   const [isAdding, setIsAdding] = useState(false);
   const [newRef, setNewRef] = useState<Partial<Reference>>({});
   const [loadingSummary, setLoadingSummary] = useState<string | null>(null);
@@ -469,6 +470,12 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
              >
                 <Globe size={16} className="mr-2" /> Discover
              </button>
+             <button
+                onClick={() => setActiveTab('assistant')}
+                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'assistant' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+             >
+                <Sparkles size={16} className="mr-2" /> Assistant
+             </button>
              <button 
                 onClick={() => setActiveTab('bibliography')}
                 className={`flex-1 flex items-center justify-center py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'bibliography' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -526,7 +533,11 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
             <ReferenceList refs={project.references} />
           </div>
         )}
-        
+
+        {activeTab === 'assistant' && (
+          <PubmedAssistantPanel project={project} onUpdateProject={onUpdateProject} />
+        )}
+
         {activeTab === 'search' && (
              <div className="space-y-6">
                  <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm">

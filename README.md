@@ -10,7 +10,7 @@ Next.js 16 app for drafting and managing research manuscripts plus general writi
 - Next.js App Router + React 19, Tailwind CSS for styling
 - ProseMirror editor for section drafting + tracked edit highlights
 - Turso (libSQL via `@libsql/client`) with server route handlers at `/api/projects` (or local SQLite for development)
-- Google Gemini client utilities for drafting, selection refinement, and search assistance
+- Google Gemini client utilities for drafting, selection refinement, and search assistance (including the PubMed Assistant chat)
 - Testing: Vitest + Testing Library (jsdom)
 
 ## Getting Started
@@ -26,7 +26,7 @@ Next.js 16 app for drafting and managing research manuscripts plus general writi
    - **Auth (Clerk):** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` (store only in `.env.local`/Vercel env vars).
    - **LLM (Gemini default):**
      - Provider: `MANUSCRIPTAI_LLM_PROVIDER=gemini` (default).
-     - Server-side key (recommended): `GEMINI_API_KEY` (used by the PubMed Discover agent).
+    - Server-side key (recommended): `GEMINI_API_KEY` (used by the PubMed Discover agent and the PubMed Assistant chat).
      - Legacy/client key: `NEXT_PUBLIC_GEMINI_API_KEY` (still used by existing client-side drafting/refinement code).
      - Optional model overrides: `MANUSCRIPTAI_LLM_MODEL_FAST` and `MANUSCRIPTAI_LLM_MODEL_QUALITY`.
    - **PubMed / NCBI (optional but recommended for higher rate limits):** `NCBI_API_KEY`, plus `NCBI_EMAIL` and `NCBI_TOOL` for polite usage.

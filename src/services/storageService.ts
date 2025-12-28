@@ -61,5 +61,8 @@ export const createNewProject = (
     sections: [],
     references: [],
     figures: [],
+    pubmedArticles: [],
+    pubmedChats: [],
+    pubmedActiveChatId: null,
   };
 };

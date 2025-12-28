@@ -13,6 +13,38 @@ export interface Reference {
   articleType?: string;
 }
 
+export type PubmedChatRole = 'user' | 'assistant';
+
+export interface PubmedChatMessage {
+  id: string;
+  role: PubmedChatRole;
+  content: string;
+  createdAt: number;
+}
+
+export interface PubmedChatSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: PubmedChatMessage[];
+}
+
+export interface PubmedArticle {
+  id: string;
+  pmid?: string;
+  title: string;
+  authors?: string;
+  journal?: string;
+  year?: string;
+  pubdate?: string;
+  doi?: string;
+  abstract?: string;
+  url?: string;
+  addedAt: number;
+  rationale?: string;
+}
+
 export type ChangeSource = 'LLM' | 'USER';
 
 export type ChangeActor =
@@ -168,6 +200,9 @@ export interface Project {
   sections: Section[];
   references: Reference[];
   figures: GeneratedFigure[];
+  pubmedArticles?: PubmedArticle[];
+  pubmedChats?: PubmedChatSession[];
+  pubmedActiveChatId?: string | null;
 }
 
 export type FigureType = 'figure' | 'table' | 'supplemental';

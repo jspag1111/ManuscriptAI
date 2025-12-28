@@ -1,4 +1,14 @@
-import type { GeneratedFigure, Project, ProjectSettings, ProjectType, Section, WritingBrief } from '@/types';
+import type {
+  GeneratedFigure,
+  Project,
+  ProjectSettings,
+  ProjectType,
+  PubmedArticle,
+  PubmedChatMessage,
+  PubmedChatSession,
+  Section,
+  WritingBrief,
+} from '@/types';
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
   targetJournal: '',
@@ -175,6 +185,60 @@ const normalizeWritingBrief = (brief?: Partial<WritingBrief> | null): WritingBri
 const normalizeProjectType = (value: unknown): ProjectType =>
   value === 'GENERAL' ? 'GENERAL' : 'MANUSCRIPT';
 
+const normalizePubmedArticle = (raw: Partial<PubmedArticle> | null | undefined, fallbackTime: number): PubmedArticle => {
+  const pmid = typeof raw?.pmid === 'string' && raw.pmid.trim().length > 0 ? raw.pmid.trim() : undefined;
+  const id = typeof raw?.id === 'string' && raw.id.trim().length > 0 ? raw.id.trim() : (pmid || generateId());
+  return {
+    id,
+    pmid,
+    title: typeof raw?.title === 'string' && raw.title.trim().length > 0 ? raw.title.trim() : 'Untitled article',
+    authors: typeof raw?.authors === 'string' ? raw.authors : undefined,
+    journal: typeof raw?.journal === 'string' ? raw.journal : undefined,
+    year: typeof raw?.year === 'string' ? raw.year : undefined,
+    pubdate: typeof raw?.pubdate === 'string' ? raw.pubdate : undefined,
+    doi: typeof raw?.doi === 'string' ? raw.doi : undefined,
+    abstract: typeof raw?.abstract === 'string' ? raw.abstract : undefined,
+    url: typeof raw?.url === 'string' ? raw.url : pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : undefined,
+    addedAt: typeof raw?.addedAt === 'number' ? raw.addedAt : fallbackTime,
+    rationale: typeof raw?.rationale === 'string' ? raw.rationale : undefined,
+  };
+};
+
+const normalizePubmedMessage = (raw: Partial<PubmedChatMessage> | null | undefined, fallbackTime: number): PubmedChatMessage | null => {
+  const content = typeof raw?.content === 'string' ? raw.content : '';
+  if (!content.trim()) return null;
+  const role = raw?.role === 'assistant' ? 'assistant' : 'user';
+  return {
+    id: typeof raw?.id === 'string' && raw.id ? raw.id : generateId(),
+    role,
+    content,
+    createdAt: typeof raw?.createdAt === 'number' ? raw.createdAt : fallbackTime,
+  };
+};
+
+const normalizePubmedChat = (raw: Partial<PubmedChatSession> | null | undefined, fallbackTime: number): PubmedChatSession => {
+  const createdAt = typeof raw?.createdAt === 'number' ? raw.createdAt : fallbackTime;
+  const updatedAt = typeof raw?.updatedAt === 'number' ? raw.updatedAt : createdAt;
+  const messages = Array.isArray(raw?.messages)
+    ? raw?.messages
+        .map((msg) => normalizePubmedMessage(msg, createdAt))
+        .filter(Boolean) as PubmedChatMessage[]
+    : [];
+  return {
+    id: typeof raw?.id === 'string' && raw.id ? raw.id : generateId(),
+    title: typeof raw?.title === 'string' && raw.title.trim().length > 0 ? raw.title.trim() : 'PubMed chat',
+    createdAt,
+    updatedAt,
+    messages,
+  };
+};
+
+const normalizePubmedArticles = (raw: unknown, fallbackTime: number): PubmedArticle[] =>
+  (Array.isArray(raw) ? raw : []).map((article) => normalizePubmedArticle(article as PubmedArticle, fallbackTime));
+
+const normalizePubmedChats = (raw: unknown, fallbackTime: number): PubmedChatSession[] =>
+  (Array.isArray(raw) ? raw : []).map((chat) => normalizePubmedChat(chat as PubmedChatSession, fallbackTime));
+
 export const normalizeProject = (project: Partial<Project>): Project => {
   const legacyLastModified = (project as any).last_modified as number | undefined;
   const fallbackTime = project.lastModified || legacyLastModified || project.created || Date.now();
@@ -198,6 +262,9 @@ export const normalizeProject = (project: Partial<Project>): Project => {
     figures: Array.isArray(project.figures)
       ? project.figures.map((fig, index) => normalizeFigure(fig as GeneratedFigure, index))
       : [],
+    pubmedArticles: normalizePubmedArticles(project.pubmedArticles, fallbackTime),
+    pubmedChats: normalizePubmedChats(project.pubmedChats, fallbackTime),
+    pubmedActiveChatId: typeof project.pubmedActiveChatId === 'string' ? project.pubmedActiveChatId : null,
   } as Project;
 
   return normalized;
