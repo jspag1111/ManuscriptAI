@@ -1,3 +1,6 @@
+## 2025-12-29 03:05 UTC
+- (Commit: codex/pubmed-assistant-scroll) Tightened the PubMed Assistant layout to enforce independent scrolling for the article board and chat pane.
+
 ## 2025-12-29 02:08 UTC
 - (Commit: codex/pubmed-assistant-streaming) Added streaming PubMed Assistant responses with Gemini thought summaries and tool call tracing, plus markdown rendering for assistant replies.
 - (Commit: codex/pubmed-assistant-streaming) Adjusted the PubMed Assistant layout so the article board and chat panes scroll independently.
