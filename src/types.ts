@@ -15,11 +15,25 @@ export interface Reference {
 
 export type PubmedChatRole = 'user' | 'assistant';
 
+export type PubmedAgentEventType = 'thought' | 'tool_call' | 'tool_result';
+
+export interface PubmedAgentEvent {
+  id: string;
+  type: PubmedAgentEventType;
+  text?: string;
+  name?: string;
+  args?: Record<string, unknown>;
+  summary?: string;
+  turn?: number;
+  createdAt: number;
+}
+
 export interface PubmedChatMessage {
   id: string;
   role: PubmedChatRole;
   content: string;
   createdAt: number;
+  agentEvents?: PubmedAgentEvent[];
 }
 
 export interface PubmedChatSession {

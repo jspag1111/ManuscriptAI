@@ -3,6 +3,7 @@ import type {
   Project,
   ProjectSettings,
   ProjectType,
+  PubmedAgentEvent,
   PubmedArticle,
   PubmedChatMessage,
   PubmedChatSession,
@@ -204,15 +205,37 @@ const normalizePubmedArticle = (raw: Partial<PubmedArticle> | null | undefined, 
   };
 };
 
+const normalizePubmedAgentEvent = (raw: Partial<PubmedAgentEvent> | null | undefined, fallbackTime: number): PubmedAgentEvent | null => {
+  if (!raw) return null;
+  const type = raw.type === 'tool_call' || raw.type === 'tool_result' || raw.type === 'thought' ? raw.type : null;
+  if (!type) return null;
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : generateId(),
+    type,
+    text: typeof raw.text === 'string' ? raw.text : undefined,
+    name: typeof raw.name === 'string' ? raw.name : undefined,
+    args: raw.args && typeof raw.args === 'object' ? raw.args : undefined,
+    summary: typeof raw.summary === 'string' ? raw.summary : undefined,
+    turn: typeof raw.turn === 'number' ? raw.turn : undefined,
+    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : fallbackTime,
+  };
+};
+
 const normalizePubmedMessage = (raw: Partial<PubmedChatMessage> | null | undefined, fallbackTime: number): PubmedChatMessage | null => {
   const content = typeof raw?.content === 'string' ? raw.content : '';
   if (!content.trim()) return null;
   const role = raw?.role === 'assistant' ? 'assistant' : 'user';
+  const agentEvents = Array.isArray(raw?.agentEvents)
+    ? raw?.agentEvents
+        .map((event) => normalizePubmedAgentEvent(event, fallbackTime))
+        .filter(Boolean) as PubmedAgentEvent[]
+    : undefined;
   return {
     id: typeof raw?.id === 'string' && raw.id ? raw.id : generateId(),
     role,
     content,
     createdAt: typeof raw?.createdAt === 'number' ? raw.createdAt : fallbackTime,
+    agentEvents: agentEvents && agentEvents.length > 0 ? agentEvents : undefined,
   };
 };
 

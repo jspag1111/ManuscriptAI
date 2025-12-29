@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, MessageSquare, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { generateId } from '@/services/storageService';
-import type { Project, PubmedArticle, PubmedChatMessage, PubmedChatSession, Reference } from '@/types';
+import type { Project, PubmedAgentEvent, PubmedArticle, PubmedChatMessage, PubmedChatSession, Reference } from '@/types';
 
 interface PubmedAssistantPanelProps {
   project: Project;
@@ -182,6 +182,17 @@ const formatToolArgs = (args: Record<string, unknown>) => {
   }
 };
 
+const streamEventToStored = (event: StreamEvent): PubmedAgentEvent => ({
+  id: event.id,
+  type: event.type,
+  text: event.type === 'thought' ? event.text : undefined,
+  name: event.type === 'tool_call' || event.type === 'tool_result' ? event.name : undefined,
+  args: event.type === 'tool_call' ? event.args : undefined,
+  summary: event.type === 'tool_result' ? event.summary : undefined,
+  turn: event.turn,
+  createdAt: event.timestamp,
+});
+
 const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, onUpdateProject }) => {
   const projectRef = useRef(project);
   const [messageInput, setMessageInput] = useState('');
@@ -310,6 +321,61 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
     }));
   };
 
+  const renderAgentEventsBlock = (
+    events: PubmedAgentEvent[],
+    options?: { open?: boolean; onToggle?: (open: boolean) => void }
+  ) => (
+    <details
+      className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-600"
+      open={options?.open}
+      onToggle={options?.onToggle ? (event) => options.onToggle?.((event.target as HTMLDetailsElement).open) : undefined}
+    >
+      <summary className="font-semibold text-slate-700 flex items-center gap-1 cursor-pointer">
+        <Sparkles size={12} /> Agent activity
+      </summary>
+      <div className="mt-2 space-y-2">
+        {events.map((event) => {
+          if (event.type === 'thought') {
+            return (
+              <div key={event.id} className="flex gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
+                  Thought
+                </span>
+                <span
+                  className="text-slate-600 [&_p]:leading-relaxed [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[10px] [&_a]:text-blue-600 [&_a]:underline"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(event.text || '') }}
+                />
+              </div>
+            );
+          }
+          if (event.type === 'tool_call') {
+            return (
+              <div key={event.id} className="flex flex-col gap-1">
+                <span className="inline-flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold uppercase tracking-wide">
+                    Tool call
+                  </span>
+                  <span className="text-slate-700 font-semibold">{event.name}</span>
+                </span>
+                {event.args ? (
+                  <code className="text-[11px] text-slate-500 break-words">{formatToolArgs(event.args)}</code>
+                ) : null}
+              </div>
+            );
+          }
+          return (
+            <div key={event.id} className="flex gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold uppercase tracking-wide">
+                Tool result
+              </span>
+              <span className="text-slate-600">{event.summary || 'Tool completed.'}</span>
+            </div>
+          );
+        })}
+      </div>
+    </details>
+  );
+
   const handleSendMessage = async () => {
     if (!activeChat || !messageInput.trim() || isSending) return;
 
@@ -367,6 +433,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      const collectedEvents: PubmedAgentEvent[] = [];
 
       const handleFinal = (payload: { reply?: string; added?: PubmedArticle[]; removed?: string[] }) => {
         const reply = typeof payload.reply === 'string' ? payload.reply : 'Here are the latest PubMed results.';
@@ -375,6 +442,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
           role: 'assistant',
           content: reply,
           createdAt: Date.now(),
+          agentEvents: collectedEvents.length > 0 ? collectedEvents : undefined,
         };
         const addedArticles = Array.isArray(payload.added) ? payload.added : [];
         const removedPmids = Array.isArray(payload.removed) ? payload.removed : [];
@@ -436,50 +504,53 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
 
           if (event.type === 'thought') {
             const text = typeof event.text === 'string' ? event.text : '';
+            const entry: StreamEvent = {
+              id: generateId(),
+              type: 'thought',
+              text,
+              turn: event.turn ?? 0,
+              timestamp: Date.now(),
+            };
+            collectedEvents.push(streamEventToStored(entry));
             updateStreamState(updatedChat.id, (prev) => ({
               ...prev,
-              events: [
-                ...prev.events,
-                { id: generateId(), type: 'thought', text, turn: event.turn ?? 0, timestamp: Date.now() },
-              ],
+              events: [...prev.events, entry],
               isStreaming: true,
               isOpen: true,
             }));
           }
 
           if (event.type === 'tool_call') {
+            const entry: StreamEvent = {
+              id: generateId(),
+              type: 'tool_call',
+              name: String(event.name || ''),
+              args: (event.args as Record<string, unknown>) || {},
+              turn: event.turn ?? 0,
+              timestamp: Date.now(),
+            };
+            collectedEvents.push(streamEventToStored(entry));
             updateStreamState(updatedChat.id, (prev) => ({
               ...prev,
-              events: [
-                ...prev.events,
-                {
-                  id: generateId(),
-                  type: 'tool_call',
-                  name: String(event.name || ''),
-                  args: (event.args as Record<string, unknown>) || {},
-                  turn: event.turn ?? 0,
-                  timestamp: Date.now(),
-                },
-              ],
+              events: [...prev.events, entry],
               isStreaming: true,
               isOpen: true,
             }));
           }
 
           if (event.type === 'tool_result') {
+            const entry: StreamEvent = {
+              id: generateId(),
+              type: 'tool_result',
+              name: String(event.name || ''),
+              summary: typeof event.summary === 'string' ? event.summary : 'Tool completed.',
+              turn: event.turn ?? 0,
+              timestamp: Date.now(),
+            };
+            collectedEvents.push(streamEventToStored(entry));
             updateStreamState(updatedChat.id, (prev) => ({
               ...prev,
-              events: [
-                ...prev.events,
-                {
-                  id: generateId(),
-                  type: 'tool_result',
-                  name: String(event.name || ''),
-                  summary: typeof event.summary === 'string' ? event.summary : 'Tool completed.',
-                  turn: event.turn ?? 0,
-                  timestamp: Date.now(),
-                },
-              ],
+              events: [...prev.events, entry],
               isStreaming: true,
               isOpen: true,
             }));
@@ -496,6 +567,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
               role: 'assistant',
               content: message,
               createdAt: Date.now(),
+              agentEvents: collectedEvents.length > 0 ? collectedEvents : undefined,
             };
             updateProject((current) => {
               const chats = coerceChats(current.pubmedChats);
@@ -691,78 +763,50 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
             activeChat.messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white ml-auto'
-                    : 'bg-slate-50 border border-slate-200 text-slate-700'
+                className={`max-w-[85%] space-y-3 ${
+                  msg.role === 'user' ? 'ml-auto' : ''
                 }`}
               >
-                {msg.role === 'assistant' ? (
-                  <div
-                    className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.content) }}
-                  />
-                ) : (
-                  msg.content
-                )}
+                {msg.role === 'assistant' && msg.agentEvents && msg.agentEvents.length > 0
+                  ? renderAgentEventsBlock(msg.agentEvents)
+                  : null}
+                <div
+                  className={`rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                    msg.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-50 border border-slate-200 text-slate-700'
+                  }`}
+                >
+                  {msg.role === 'assistant' ? (
+                    <div
+                      className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.content) }}
+                    />
+                  ) : (
+                    msg.content
+                  )}
+                </div>
               </div>
             ))
           )}
 
-          {activeStreamState?.isStreaming && activeStreamState.reply ? (
-            <div className="max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm bg-slate-50 border border-slate-200 text-slate-700">
-              <div
-                className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
-                dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(activeStreamState.reply) }}
-              />
+          {activeStreamState?.isStreaming ? (
+            <div className="max-w-[85%] space-y-3">
+              {activeStreamState.events.length > 0
+                ? renderAgentEventsBlock(activeStreamState.events.map(streamEventToStored), {
+                    open: activeStreamState.isStreaming ? true : activeStreamState.isOpen,
+                    onToggle: handleToggleActivity,
+                  })
+                : null}
+              {activeStreamState.reply ? (
+                <div className="rounded-2xl px-4 py-2 text-sm shadow-sm bg-slate-50 border border-slate-200 text-slate-700">
+                  <div
+                    className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(activeStreamState.reply) }}
+                  />
+                </div>
+              ) : null}
             </div>
-          ) : null}
-
-          {activeStreamState?.events?.length ? (
-            <details
-              className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-600"
-              open={activeStreamState.isStreaming ? true : activeStreamState.isOpen}
-              onToggle={(event) => handleToggleActivity((event.target as HTMLDetailsElement).open)}
-            >
-              <summary className="font-semibold text-slate-700 flex items-center gap-1 cursor-pointer">
-                <Sparkles size={12} /> Agent activity
-              </summary>
-              <div className="mt-2 space-y-2">
-                {activeStreamState.events.map((event) => {
-                  if (event.type === 'thought') {
-                    return (
-                      <div key={event.id} className="flex gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
-                          Thought
-                        </span>
-                        <span className="text-slate-600">{event.text}</span>
-                      </div>
-                    );
-                  }
-                  if (event.type === 'tool_call') {
-                    return (
-                      <div key={event.id} className="flex flex-col gap-1">
-                        <span className="inline-flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold uppercase tracking-wide">
-                            Tool call
-                          </span>
-                          <span className="text-slate-700 font-semibold">{event.name}</span>
-                        </span>
-                        <code className="text-[11px] text-slate-500 break-words">{formatToolArgs(event.args)}</code>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={event.id} className="flex gap-2">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold uppercase tracking-wide">
-                        Tool result
-                      </span>
-                      <span className="text-slate-600">{event.summary}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
           ) : null}
         </div>
 

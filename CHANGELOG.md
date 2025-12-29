@@ -1,3 +1,6 @@
+## 2025-12-29 03:24 UTC
+- (Commit: codex/pubmed-agent-trace-persist) Persisted PubMed Assistant thought/tool traces with each assistant reply, rendered their markdown, and positioned the trace block above the final response.
+
 ## 2025-12-29 03:12 UTC
 - (Commit: codex/pubmed-assistant-fixed-scroll) Fixed the manuscript workspace layout so the left sidebar stays visible while the References view scrolls internally.
 - (Commit: codex/pubmed-assistant-fixed-scroll) Locked the PubMed Assistant/article board to fixed-height panels with independent scrolling inside the References view.
