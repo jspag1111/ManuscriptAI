@@ -1,3 +1,7 @@
+## 2025-12-29 03:12 UTC
+- (Commit: codex/pubmed-assistant-fixed-scroll) Fixed the manuscript workspace layout so the left sidebar stays visible while the References view scrolls internally.
+- (Commit: codex/pubmed-assistant-fixed-scroll) Locked the PubMed Assistant/article board to fixed-height panels with independent scrolling inside the References view.
+
 ## 2025-12-29 03:05 UTC
 - (Commit: codex/pubmed-assistant-scroll) Tightened the PubMed Assistant layout to enforce independent scrolling for the article board and chat pane.
 

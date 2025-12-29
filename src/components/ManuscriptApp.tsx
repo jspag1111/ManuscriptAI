@@ -452,8 +452,8 @@ const ManuscriptApp: React.FC = () => {
   const activeSection = currentProject.sections.find(s => s.id === activeSectionId);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-transparent">
-      <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+    <div className="h-[calc(100vh-4rem)] bg-transparent overflow-hidden">
+      <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full flex flex-col gap-4">
         {/* Top Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 border border-slate-200 rounded-2xl shadow-sm px-4 py-3">
           <div className="flex items-center gap-3">
@@ -481,10 +481,10 @@ const ManuscriptApp: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 lg:gap-6">
           {/* Sidebar */}
-          <div className="lg:w-72 w-full bg-white/80 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-4 space-y-6 max-h-[70vh] lg:max-h-[calc(100vh-240px)] overflow-y-auto">
+          <div className="lg:w-72 w-full bg-white/80 border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+            <div className="p-4 space-y-6 flex-1 min-h-0 overflow-y-auto">
               <div className="space-y-3">
                 <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Manuscript Info</h2>
                 <button
@@ -692,7 +692,7 @@ const ManuscriptApp: React.FC = () => {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 min-h-[70vh] overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden">
             {activeTab === SectionView.EDITOR && activeSection && (
               <SectionEditor
                 section={activeSection}
