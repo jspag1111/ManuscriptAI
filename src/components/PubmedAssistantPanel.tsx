@@ -55,12 +55,139 @@ const mergeArticles = (existing: PubmedArticle[], added: PubmedArticle[]) => {
   return Array.from(map.values()).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
 };
 
+type StreamEvent =
+  | { id: string; type: 'thought'; text: string; turn: number; timestamp: number }
+  | { id: string; type: 'tool_call'; name: string; args: Record<string, unknown>; turn: number; timestamp: number }
+  | { id: string; type: 'tool_result'; name: string; summary: string; turn: number; timestamp: number };
+
+type StreamState = {
+  reply: string;
+  events: StreamEvent[];
+  isStreaming: boolean;
+  isOpen: boolean;
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const applyInlineMarkdown = (value: string) => {
+  let html = value;
+  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  return html;
+};
+
+const renderMarkdownToHtml = (value: string) => {
+  if (!value) return '';
+  const codeBlocks: string[] = [];
+  let html = value;
+
+  html = html.replace(/```([\s\S]*?)```/g, (_match, code) => {
+    const index = codeBlocks.length;
+    codeBlocks.push(code);
+    return `@@CODEBLOCK_${index}@@`;
+  });
+
+  html = escapeHtml(html);
+
+  const lines = html.split(/\r?\n/);
+  let output = '';
+  let inUl = false;
+  let inOl = false;
+
+  const closeLists = () => {
+    if (inUl) {
+      output += '</ul>';
+      inUl = false;
+    }
+    if (inOl) {
+      output += '</ol>';
+      inOl = false;
+    }
+  };
+
+  for (const line of lines) {
+    if (line.includes('@@CODEBLOCK_')) {
+      closeLists();
+      output += line;
+      continue;
+    }
+
+    const headingMatch = line.match(/^#{1,3}\s+(.*)$/);
+    if (headingMatch) {
+      closeLists();
+      output += `<h4>${applyInlineMarkdown(headingMatch[1])}</h4>`;
+      continue;
+    }
+
+    const unorderedMatch = line.match(/^\s*[-*]\s+(.*)$/);
+    if (unorderedMatch) {
+      if (!inUl) {
+        closeLists();
+        output += '<ul>';
+        inUl = true;
+      }
+      output += `<li>${applyInlineMarkdown(unorderedMatch[1])}</li>`;
+      continue;
+    }
+
+    const orderedMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (orderedMatch) {
+      if (!inOl) {
+        closeLists();
+        output += '<ol>';
+        inOl = true;
+      }
+      output += `<li>${applyInlineMarkdown(orderedMatch[1])}</li>`;
+      continue;
+    }
+
+    if (!line.trim()) {
+      closeLists();
+      output += '<br />';
+      continue;
+    }
+
+    closeLists();
+    output += `<p>${applyInlineMarkdown(line)}</p>`;
+  }
+
+  closeLists();
+
+  codeBlocks.forEach((block, index) => {
+    const safe = escapeHtml(block);
+    output = output.replace(
+      `@@CODEBLOCK_${index}@@`,
+      `<pre><code>${safe}</code></pre>`
+    );
+  });
+
+  return output;
+};
+
+const formatToolArgs = (args: Record<string, unknown>) => {
+  try {
+    const json = JSON.stringify(args);
+    if (json.length > 160) return `${json.slice(0, 160)}...`;
+    return json;
+  } catch (error) {
+    return '[unavailable]';
+  }
+};
+
 const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, onUpdateProject }) => {
   const projectRef = useRef(project);
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [expandedArticles, setExpandedArticles] = useState<Record<string, boolean>>({});
-  const [toolSummaryByChat, setToolSummaryByChat] = useState<Record<string, string[]>>({});
+  const [streamStateByChat, setStreamStateByChat] = useState<Record<string, StreamState>>({});
 
   useEffect(() => {
     projectRef.current = project;
@@ -70,6 +197,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
   const pubmedChats = useMemo(() => coerceChats(project.pubmedChats), [project.pubmedChats]);
   const activeChatId = project.pubmedActiveChatId || pubmedChats[0]?.id || null;
   const activeChat = pubmedChats.find((chat) => chat.id === activeChatId) || null;
+  const activeStreamState = activeChatId ? streamStateByChat[activeChatId] : undefined;
 
   useEffect(() => {
     if (pubmedChats.length === 0) {
@@ -159,6 +287,29 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
     };
   };
 
+  const updateStreamState = (chatId: string, updater: (prev: StreamState) => StreamState) => {
+    setStreamStateByChat((prev) => {
+      const fallback: StreamState = {
+        reply: '',
+        events: [],
+        isStreaming: false,
+        isOpen: false,
+      };
+      return {
+        ...prev,
+        [chatId]: updater(prev[chatId] || fallback),
+      };
+    });
+  };
+
+  const handleToggleActivity = (open: boolean) => {
+    if (!activeChatId) return;
+    updateStreamState(activeChatId, (prev) => ({
+      ...prev,
+      isOpen: open,
+    }));
+  };
+
   const handleSendMessage = async () => {
     if (!activeChat || !messageInput.trim() || isSending) return;
 
@@ -200,43 +351,178 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
         }),
       });
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
         throw new Error(data?.error || response.statusText || 'PubMed agent failed.');
       }
 
-      const assistantMessage: PubmedChatMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: typeof data.reply === 'string' ? data.reply : 'Here are the latest PubMed results.',
-        createdAt: Date.now(),
+      updateStreamState(updatedChat.id, (prev) => ({
+        ...prev,
+        reply: '',
+        events: [],
+        isStreaming: true,
+        isOpen: true,
+      }));
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const handleFinal = (payload: { reply?: string; added?: PubmedArticle[]; removed?: string[] }) => {
+        const reply = typeof payload.reply === 'string' ? payload.reply : 'Here are the latest PubMed results.';
+        const assistantMessage: PubmedChatMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: reply,
+          createdAt: Date.now(),
+        };
+        const addedArticles = Array.isArray(payload.added) ? payload.added : [];
+        const removedPmids = Array.isArray(payload.removed) ? payload.removed : [];
+
+        updateProject((current) => {
+          const chats = coerceChats(current.pubmedChats);
+          const nextChats = chats.map((chat) => {
+            if (chat.id !== updatedChat.id) return chat;
+            return appendMessage(chat, assistantMessage);
+          });
+
+          const filteredArticles = coerceArticles(current.pubmedArticles).filter((article) => {
+            const key = article.pmid || article.id;
+            return key && !removedPmids.includes(key);
+          });
+
+          return {
+            ...current,
+            pubmedChats: nextChats,
+            pubmedArticles: mergeArticles(filteredArticles, addedArticles),
+          };
+        });
+
+        updateStreamState(updatedChat.id, (prev) => ({
+          ...prev,
+          reply: '',
+          isStreaming: false,
+          isOpen: false,
+        }));
       };
 
-      const addedArticles = Array.isArray(data.added) ? (data.added as PubmedArticle[]) : [];
-      const removedPmids = Array.isArray(data.removed) ? (data.removed as string[]) : [];
-      const toolSummary = Array.isArray(data.toolSummary) ? (data.toolSummary as string[]) : [];
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      updateProject((current) => {
-        const chats = coerceChats(current.pubmedChats);
-        const nextChats = chats.map((chat) => {
-          if (chat.id !== updatedChat.id) return chat;
-          return appendMessage(chat, assistantMessage);
-        });
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: any;
+          try {
+            event = JSON.parse(line);
+          } catch (err) {
+            continue;
+          }
+          if (!event || typeof event.type !== 'string') continue;
 
-        const filteredArticles = coerceArticles(current.pubmedArticles).filter((article) => {
-          const key = article.pmid || article.id;
-          return key && !removedPmids.includes(key);
-        });
+          if (event.type === 'token') {
+            const text = typeof event.text === 'string' ? event.text : '';
+            if (!text) continue;
+            updateStreamState(updatedChat.id, (prev) => ({
+              ...prev,
+              reply: `${prev.reply}${text}`,
+              isStreaming: true,
+              isOpen: true,
+            }));
+          }
 
-        return {
-          ...current,
-          pubmedChats: nextChats,
-          pubmedArticles: mergeArticles(filteredArticles, addedArticles),
-        };
-      });
+          if (event.type === 'thought') {
+            const text = typeof event.text === 'string' ? event.text : '';
+            updateStreamState(updatedChat.id, (prev) => ({
+              ...prev,
+              events: [
+                ...prev.events,
+                { id: generateId(), type: 'thought', text, turn: event.turn ?? 0, timestamp: Date.now() },
+              ],
+              isStreaming: true,
+              isOpen: true,
+            }));
+          }
 
-      if (toolSummary.length > 0) {
-        setToolSummaryByChat((prev) => ({ ...prev, [updatedChat.id]: toolSummary }));
+          if (event.type === 'tool_call') {
+            updateStreamState(updatedChat.id, (prev) => ({
+              ...prev,
+              events: [
+                ...prev.events,
+                {
+                  id: generateId(),
+                  type: 'tool_call',
+                  name: String(event.name || ''),
+                  args: (event.args as Record<string, unknown>) || {},
+                  turn: event.turn ?? 0,
+                  timestamp: Date.now(),
+                },
+              ],
+              isStreaming: true,
+              isOpen: true,
+            }));
+          }
+
+          if (event.type === 'tool_result') {
+            updateStreamState(updatedChat.id, (prev) => ({
+              ...prev,
+              events: [
+                ...prev.events,
+                {
+                  id: generateId(),
+                  type: 'tool_result',
+                  name: String(event.name || ''),
+                  summary: typeof event.summary === 'string' ? event.summary : 'Tool completed.',
+                  turn: event.turn ?? 0,
+                  timestamp: Date.now(),
+                },
+              ],
+              isStreaming: true,
+              isOpen: true,
+            }));
+          }
+
+          if (event.type === 'final') {
+            handleFinal(event);
+          }
+
+          if (event.type === 'error') {
+            const message = typeof event.message === 'string' ? event.message : 'PubMed agent failed.';
+            const errorMessage: PubmedChatMessage = {
+              id: generateId(),
+              role: 'assistant',
+              content: message,
+              createdAt: Date.now(),
+            };
+            updateProject((current) => {
+              const chats = coerceChats(current.pubmedChats);
+              return {
+                ...current,
+                pubmedChats: chats.map((chat) => (chat.id === updatedChat.id ? appendMessage(chat, errorMessage) : chat)),
+              };
+            });
+            updateStreamState(updatedChat.id, (prev) => ({
+              ...prev,
+              reply: '',
+              isStreaming: false,
+              isOpen: false,
+            }));
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        try {
+          const event = JSON.parse(buffer);
+          if (event?.type === 'final') {
+            handleFinal(event);
+          }
+        } catch (err) {
+          // ignore trailing buffer
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'PubMed agent failed.';
@@ -267,8 +553,8 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] h-full min-h-0">
+      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
         <header className="p-4 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
@@ -280,7 +566,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
           {pubmedArticles.length === 0 && (
             <div className="text-sm text-slate-500 text-center py-10">
               No articles yet. Ask the assistant to search PubMed and the results will appear here.
@@ -364,7 +650,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
         </div>
       </section>
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[520px]">
+      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
         <header className="border-b border-slate-200 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -396,7 +682,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {!activeChat || activeChat.messages.length === 0 ? (
             <div className="text-sm text-slate-500 text-center py-10">
               Describe the PubMed evidence you want to collect, and the assistant will curate articles for you.
@@ -411,22 +697,72 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
                     : 'bg-slate-50 border border-slate-200 text-slate-700'
                 }`}
               >
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <div
+                    className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(msg.content) }}
+                  />
+                ) : (
+                  msg.content
+                )}
               </div>
             ))
           )}
 
-          {toolSummaryByChat[activeChatId || '']?.length ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
-              <p className="font-semibold text-slate-700 flex items-center gap-1">
-                <Sparkles size={12} /> Agent activity
-              </p>
-              <ul className="mt-2 space-y-1 list-disc list-inside">
-                {toolSummaryByChat[activeChatId || ''].map((item, index) => (
-                  <li key={`${item}-${index}`}>{item}</li>
-                ))}
-              </ul>
+          {activeStreamState?.isStreaming && activeStreamState.reply ? (
+            <div className="max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm bg-slate-50 border border-slate-200 text-slate-700">
+              <div
+                className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(activeStreamState.reply) }}
+              />
             </div>
+          ) : null}
+
+          {activeStreamState?.events?.length ? (
+            <details
+              className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-600"
+              open={activeStreamState.isStreaming ? true : activeStreamState.isOpen}
+              onToggle={(event) => handleToggleActivity((event.target as HTMLDetailsElement).open)}
+            >
+              <summary className="font-semibold text-slate-700 flex items-center gap-1 cursor-pointer">
+                <Sparkles size={12} /> Agent activity
+              </summary>
+              <div className="mt-2 space-y-2">
+                {activeStreamState.events.map((event) => {
+                  if (event.type === 'thought') {
+                    return (
+                      <div key={event.id} className="flex gap-2">
+                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
+                          Thought
+                        </span>
+                        <span className="text-slate-600">{event.text}</span>
+                      </div>
+                    );
+                  }
+                  if (event.type === 'tool_call') {
+                    return (
+                      <div key={event.id} className="flex flex-col gap-1">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold uppercase tracking-wide">
+                            Tool call
+                          </span>
+                          <span className="text-slate-700 font-semibold">{event.name}</span>
+                        </span>
+                        <code className="text-[11px] text-slate-500 break-words">{formatToolArgs(event.args)}</code>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={event.id} className="flex gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold uppercase tracking-wide">
+                        Tool result
+                      </span>
+                      <span className="text-slate-600">{event.summary}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
           ) : null}
         </div>
 

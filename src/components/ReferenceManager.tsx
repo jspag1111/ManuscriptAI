@@ -447,6 +447,10 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
     </div>
   );
 
+  const contentClassName = activeTab === 'assistant'
+    ? 'flex-1 overflow-hidden px-6 pb-6'
+    : 'flex-1 overflow-y-auto px-6 pb-6';
+
   return (
     <div className="h-full flex flex-col bg-slate-50">
       <div className="p-6 pb-0">
@@ -485,7 +489,7 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({ project, onU
          </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className={contentClassName}>
         {activeTab === 'library' && (
           <div className="space-y-6">
             <div className="bg-white border border-slate-200 p-4 rounded-lg space-y-4 shadow-sm">

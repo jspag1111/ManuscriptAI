@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, type Content } from '@google/genai';
+import { FunctionCallingConfigMode, GoogleGenAI, Type, type Content, type Part } from '@google/genai';
 import type { PubmedArticle } from '@/types';
 import {
   pubmedFetchAbstracts,
@@ -21,6 +21,14 @@ export type PubmedAgentResponse = {
   added: PubmedArticle[];
   removed: string[];
 };
+
+export type PubmedAgentStreamEvent =
+  | { type: 'thought'; text: string; turn: number }
+  | { type: 'token'; text: string; turn: number }
+  | { type: 'tool_call'; name: string; args: Record<string, unknown>; turn: number }
+  | { type: 'tool_result'; name: string; summary: string; turn: number }
+  | { type: 'final'; reply: string; model: string; added: PubmedArticle[]; removed: string[] }
+  | { type: 'error'; message: string };
 
 export type PubmedToolLogEntry = {
   name: string;
@@ -157,12 +165,52 @@ const coerceNumber = (value: unknown, fallback: number) => {
 const toStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((v) => String(v)).filter((v) => v.trim().length > 0) : [];
 
-export const runPubmedAgent = async ({
+const summarizeToolResult = (name: string, result: Record<string, unknown>) => {
+  if (!result || typeof result !== 'object') return `${name} completed.`;
+  if (name === 'pubmed_search_pmids_generated_tool') {
+    const count = typeof result.count === 'number' ? result.count : undefined;
+    return `PubMed search${count !== undefined ? ` returned ${count} hits` : ' completed'}.`;
+  }
+  if (name === 'pubmed_fetch_titles_tool') {
+    const items = Array.isArray(result.items) ? result.items.length : undefined;
+    return `Fetched titles${items !== undefined ? ` (${items})` : ''}.`;
+  }
+  if (name === 'pubmed_fetch_abstracts_tool') {
+    const items = Array.isArray(result.items) ? result.items.length : undefined;
+    return `Fetched abstracts${items !== undefined ? ` (${items})` : ''}.`;
+  }
+  if (name === 'pubmed_similar_pmids_tool') {
+    const items = Array.isArray(result.similar_pmids) ? result.similar_pmids.length : undefined;
+    return `Found related articles${items !== undefined ? ` (${items})` : ''}.`;
+  }
+  if (name === 'pubmed_remove_articles_tool') {
+    const removed = Array.isArray(result.removed) ? result.removed.length : undefined;
+    return `Removed articles${removed !== undefined ? ` (${removed})` : ''}.`;
+  }
+  return `${name} completed.`;
+};
+
+const iterParts = (chunk: any): Part[] => {
+  const candidates = chunk?.candidates || [];
+  if (!Array.isArray(candidates) || candidates.length === 0) return [];
+  const content = candidates[0]?.content;
+  const parts = content?.parts;
+  return Array.isArray(parts) ? parts : [];
+};
+
+const finalizeResponse = (toolLog: PubmedToolLogEntry[], removed: Set<string>) => {
+  const added = extractArticlesFromToolLog(toolLog);
+  return { added, removed: Array.from(removed) };
+};
+
+export const runPubmedAgentStream = async ({
   messages,
   existingArticles,
+  emit,
 }: {
   messages: PubmedAgentMessage[];
   existingArticles: Array<{ pmid?: string; title?: string }>;
+  emit: (event: PubmedAgentStreamEvent) => void;
 }): Promise<PubmedAgentResponse> => {
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const systemInstruction = buildSystemInstruction(existingArticles);
@@ -348,7 +396,7 @@ export const runPubmedAgent = async ({
   let finalText = '';
 
   for (let turn = 0; turn < MAX_TURNS; turn += 1) {
-    const response = await ai.models.generateContent({
+    const stream = await ai.models.generateContentStream({
       model,
       contents,
       config: {
@@ -356,20 +404,55 @@ export const runPubmedAgent = async ({
         temperature: 0.2,
         maxOutputTokens: 1200,
         tools: [{ functionDeclarations: toolDefinitions }],
+        toolConfig: {
+          functionCallingConfig: {
+            mode: FunctionCallingConfigMode.AUTO,
+          },
+        },
+        automaticFunctionCalling: { disable: true },
+        thinkingConfig: { includeThoughts: true },
       },
     });
 
-    const functionCalls = response.functionCalls || [];
-    if (!functionCalls.length) {
-      finalText = response.text || '';
+    const modelParts: Part[] = [];
+    const pendingFunctionCalls: Array<Record<string, unknown>> = [];
+    let sawToolCall = false;
+
+    for await (const chunk of stream) {
+      const parts = iterParts(chunk);
+      for (const part of parts) {
+        if (part?.thought && part?.text) {
+          emit({ type: 'thought', text: part.text.trim(), turn });
+          modelParts.push(part);
+          continue;
+        }
+        if (part?.text) {
+          finalText += part.text;
+          emit({ type: 'token', text: part.text, turn });
+          modelParts.push(part);
+          continue;
+        }
+        if (part?.functionCall) {
+          const call = part.functionCall;
+          const name = String(call?.name || '');
+          const args = (call?.args as Record<string, unknown>) || {};
+          emit({ type: 'tool_call', name, args, turn });
+          pendingFunctionCalls.push({ name, args });
+          modelParts.push(part);
+          sawToolCall = true;
+        }
+      }
+    }
+
+    if (modelParts.length > 0) {
+      contents.push({ role: 'model', parts: modelParts });
+    }
+
+    if (!sawToolCall || pendingFunctionCalls.length === 0) {
       break;
     }
 
-    if (response.candidates?.[0]?.content) {
-      contents.push(response.candidates[0].content);
-    }
-
-    for (const call of functionCalls) {
+    for (const call of pendingFunctionCalls) {
       const name = String(call.name || '');
       const args = (call.args as Record<string, unknown>) || {};
       const handler = toolHandlers[name];
@@ -383,6 +466,7 @@ export const runPubmedAgent = async ({
       }
 
       toolLog.push({ name, args, result, timestamp: Date.now() });
+      emit({ type: 'tool_result', name, summary: summarizeToolResult(name, result), turn });
 
       contents.push({
         role: 'user',
@@ -398,17 +482,34 @@ export const runPubmedAgent = async ({
     }
   }
 
-  if (!finalText) {
+  if (!finalText.trim()) {
     finalText = 'I was unable to complete the PubMed search flow. Please try again with a more specific request.';
   }
 
-  const added = extractArticlesFromToolLog(toolLog);
+  const { added, removed: removedList } = finalizeResponse(toolLog, removed);
+
+  emit({ type: 'final', reply: finalText, model, added, removed: removedList });
 
   return {
     reply: finalText,
     model,
     toolLog,
     added,
-    removed: Array.from(removed),
+    removed: removedList,
   };
+};
+
+export const runPubmedAgent = async ({
+  messages,
+  existingArticles,
+}: {
+  messages: PubmedAgentMessage[];
+  existingArticles: Array<{ pmid?: string; title?: string }>;
+}): Promise<PubmedAgentResponse> => {
+  const events: PubmedAgentStreamEvent[] = [];
+  return runPubmedAgentStream({
+    messages,
+    existingArticles,
+    emit: (event) => events.push(event),
+  });
 };

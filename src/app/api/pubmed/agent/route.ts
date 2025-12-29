@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { runPubmedAgent, type PubmedAgentMessage, type PubmedToolLogEntry } from '@/lib/pubmed/agent';
+import { runPubmedAgentStream, type PubmedAgentMessage, type PubmedAgentStreamEvent } from '@/lib/pubmed/agent';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,31 +33,7 @@ const coerceArticles = (raw: AgentBody['articles']) => {
     .filter((article) => article.pmid || article.title);
 };
 
-const summarizeToolLog = (toolLog: PubmedToolLogEntry[]) =>
-  toolLog.map((entry) => {
-    if (entry.name === 'pubmed_search_pmids_generated_tool') {
-      const count = typeof entry.result?.count === 'number' ? entry.result.count : undefined;
-      const query = typeof entry.result?.query === 'string' ? entry.result.query : undefined;
-      return `PubMed search${count !== undefined ? ` (${count} hits)` : ''}${query ? `: ${query}` : ''}`;
-    }
-    if (entry.name === 'pubmed_fetch_titles_tool') {
-      const count = Array.isArray(entry.result?.items) ? entry.result.items.length : undefined;
-      return `Fetched titles${count !== undefined ? ` (${count})` : ''}`;
-    }
-    if (entry.name === 'pubmed_fetch_abstracts_tool') {
-      const count = Array.isArray(entry.result?.items) ? entry.result.items.length : undefined;
-      return `Fetched abstracts${count !== undefined ? ` (${count})` : ''}`;
-    }
-    if (entry.name === 'pubmed_similar_pmids_tool') {
-      const count = Array.isArray(entry.result?.similar_pmids) ? entry.result.similar_pmids.length : undefined;
-      return `Found related articles${count !== undefined ? ` (${count})` : ''}`;
-    }
-    if (entry.name === 'pubmed_remove_articles_tool') {
-      const count = Array.isArray(entry.result?.removed) ? entry.result.removed.length : undefined;
-      return `Removed articles${count !== undefined ? ` (${count})` : ''}`;
-    }
-    return entry.name;
-  });
+const toNdjsonLine = (event: PubmedAgentStreamEvent) => `${JSON.stringify(event)}\n`;
 
 export async function POST(request: Request) {
   try {
@@ -79,17 +55,34 @@ export async function POST(request: Request) {
     const slicedMessages = messages.length > MAX_MESSAGES ? messages.slice(-MAX_MESSAGES) : messages;
     const articles = coerceArticles(body.articles);
 
-    const result = await runPubmedAgent({
-      messages: slicedMessages,
-      existingArticles: articles,
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const emit = (event: PubmedAgentStreamEvent) => {
+          controller.enqueue(encoder.encode(toNdjsonLine(event)));
+        };
+
+        try {
+          await runPubmedAgentStream({
+            messages: slicedMessages,
+            existingArticles: articles,
+            emit,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'PubMed agent failed';
+          emit({ type: 'error', message });
+        } finally {
+          controller.close();
+        }
+      },
     });
 
-    return NextResponse.json({
-      reply: result.reply,
-      model: result.model,
-      added: result.added,
-      removed: result.removed,
-      toolSummary: summarizeToolLog(result.toolLog),
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
     });
   } catch (error) {
     console.error('PubMed agent error', error);
