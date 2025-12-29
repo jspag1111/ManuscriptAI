@@ -160,9 +160,11 @@ const toStringArray = (value: unknown): string[] =>
 export const runPubmedAgent = async ({
   messages,
   existingArticles,
+  onToolLog,
 }: {
   messages: PubmedAgentMessage[];
   existingArticles: Array<{ pmid?: string; title?: string }>;
+  onToolLog?: (entry: PubmedToolLogEntry) => void;
 }): Promise<PubmedAgentResponse> => {
   const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const systemInstruction = buildSystemInstruction(existingArticles);
@@ -382,7 +384,9 @@ export const runPubmedAgent = async ({
         result = { ok: false, error: message };
       }
 
-      toolLog.push({ name, args, result, timestamp: Date.now() });
+      const entry: PubmedToolLogEntry = { name, args, result, timestamp: Date.now() };
+      toolLog.push(entry);
+      onToolLog?.(entry);
 
       contents.push({
         role: 'user',
