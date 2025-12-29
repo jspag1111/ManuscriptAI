@@ -1,3 +1,7 @@
+## 2025-12-29 00:45 UTC
+- (Commit: codex/stream-pubmed-agent-updates) Changed the PubMed assistant layout to keep the article board and chat column independently scrollable.
+- (Commit: codex/stream-pubmed-agent-updates) Added streaming PubMed agent updates for tool activity and thought summaries with a live UI feed.
+
 ## 2025-12-28 05:00 UTC
 - (Commit: codex/add-pubmed-assistant-chat) Added a PubMed Assistant chat panel with a persistent article board and multi-chat sessions alongside the existing reference manager.
 - (Commit: codex/add-pubmed-assistant-chat) Added a Gemini tool-use PubMed agent API with E-utilities wrappers for search, summaries, abstracts, related lookups, and board removals.

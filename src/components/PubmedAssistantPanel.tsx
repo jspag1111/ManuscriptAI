@@ -61,6 +61,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
   const [isSending, setIsSending] = useState(false);
   const [expandedArticles, setExpandedArticles] = useState<Record<string, boolean>>({});
   const [toolSummaryByChat, setToolSummaryByChat] = useState<Record<string, string[]>>({});
+  const [thoughtSummaryByChat, setThoughtSummaryByChat] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     projectRef.current = project;
@@ -182,6 +183,8 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
 
     setMessageInput('');
     setIsSending(true);
+    setToolSummaryByChat((prev) => ({ ...prev, [updatedChat.id]: [] }));
+    setThoughtSummaryByChat((prev) => ({ ...prev, [updatedChat.id]: [] }));
 
     const agentMessages = [...updatedChat.messages]
       .slice(-MAX_MESSAGES_FOR_AGENT)
@@ -200,21 +203,106 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
         }),
       });
 
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
         throw new Error(data?.error || response.statusText || 'PubMed agent failed.');
+      }
+
+      if (!response.body) {
+        throw new Error('PubMed agent response did not include a stream.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalPayload: {
+        reply?: string;
+        added?: PubmedArticle[];
+        removed?: string[];
+        toolSummary?: string[];
+      } | null = null;
+      let streamError: string | null = null;
+
+      const appendSummary = (
+        updater: React.Dispatch<React.SetStateAction<Record<string, string[]>>>,
+        summary: string
+      ) => {
+        updater((prev) => {
+          const existing = prev[updatedChat.id] || [];
+          if (existing[existing.length - 1] === summary) return prev;
+          return { ...prev, [updatedChat.id]: [...existing, summary] };
+        });
+      };
+
+      const handleEvent = (event: {
+        type?: string;
+        summary?: string;
+        error?: string;
+        reply?: string;
+        added?: unknown;
+        removed?: unknown;
+        toolSummary?: string[];
+      }) => {
+        if (event.type === 'tool' && event.summary) {
+          appendSummary(setToolSummaryByChat, event.summary);
+        }
+        if (event.type === 'thought' && event.summary) {
+          appendSummary(setThoughtSummaryByChat, event.summary);
+        }
+        if (event.type === 'error') {
+          streamError = event.error || 'PubMed agent failed.';
+        }
+        if (event.type === 'final') {
+          finalPayload = {
+            reply: typeof event.reply === 'string' ? event.reply : undefined,
+            added: Array.isArray(event.added) ? (event.added as PubmedArticle[]) : [],
+            removed: Array.isArray(event.removed) ? (event.removed as string[]) : [],
+            toolSummary: Array.isArray(event.toolSummary) ? (event.toolSummary as string[]) : [],
+          };
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf('\n\n');
+        while (boundary !== -1) {
+          const chunk = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const lines = chunk.split('\n');
+          const dataLines = lines.filter((line) => line.startsWith('data:')).map((line) => line.replace(/^data:\s?/, ''));
+          const data = dataLines.join('');
+          if (data) {
+            try {
+              const parsed = JSON.parse(data);
+              handleEvent(parsed);
+            } catch {
+              // Ignore malformed chunks.
+            }
+          }
+          boundary = buffer.indexOf('\n\n');
+        }
+      }
+
+      if (streamError) {
+        throw new Error(streamError);
+      }
+
+      if (!finalPayload?.reply) {
+        throw new Error('PubMed agent did not return a response.');
       }
 
       const assistantMessage: PubmedChatMessage = {
         id: generateId(),
         role: 'assistant',
-        content: typeof data.reply === 'string' ? data.reply : 'Here are the latest PubMed results.',
+        content: finalPayload.reply || 'Here are the latest PubMed results.',
         createdAt: Date.now(),
       };
 
-      const addedArticles = Array.isArray(data.added) ? (data.added as PubmedArticle[]) : [];
-      const removedPmids = Array.isArray(data.removed) ? (data.removed as string[]) : [];
-      const toolSummary = Array.isArray(data.toolSummary) ? (data.toolSummary as string[]) : [];
+      const addedArticles = finalPayload.added || [];
+      const removedPmids = finalPayload.removed || [];
+      const toolSummary = finalPayload.toolSummary || [];
 
       updateProject((current) => {
         const chats = coerceChats(current.pubmedChats);
@@ -236,7 +324,14 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
       });
 
       if (toolSummary.length > 0) {
-        setToolSummaryByChat((prev) => ({ ...prev, [updatedChat.id]: toolSummary }));
+        setToolSummaryByChat((prev) => {
+          const existing = prev[updatedChat.id] || [];
+          const merged = [...existing];
+          toolSummary.forEach((item) => {
+            if (!merged.includes(item)) merged.push(item);
+          });
+          return { ...prev, [updatedChat.id]: merged };
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'PubMed agent failed.';
@@ -267,8 +362,8 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+    <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] h-full min-h-0">
+      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
         <header className="p-4 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
@@ -280,7 +375,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
             </div>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
           {pubmedArticles.length === 0 && (
             <div className="text-sm text-slate-500 text-center py-10">
               No articles yet. Ask the assistant to search PubMed and the results will appear here.
@@ -364,7 +459,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
         </div>
       </section>
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[520px]">
+      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-0">
         <header className="border-b border-slate-200 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -396,7 +491,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           {!activeChat || activeChat.messages.length === 0 ? (
             <div className="text-sm text-slate-500 text-center py-10">
               Describe the PubMed evidence you want to collect, and the assistant will curate articles for you.
@@ -415,6 +510,19 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
               </div>
             ))
           )}
+
+          {thoughtSummaryByChat[activeChatId || '']?.length ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+              <p className="font-semibold text-slate-700 flex items-center gap-1">
+                <Sparkles size={12} /> Thought summary
+              </p>
+              <ul className="mt-2 space-y-1 list-disc list-inside">
+                {thoughtSummaryByChat[activeChatId || ''].map((item, index) => (
+                  <li key={`${item}-${index}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {toolSummaryByChat[activeChatId || '']?.length ? (
             <div className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
