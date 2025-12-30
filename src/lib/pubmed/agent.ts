@@ -1,4 +1,5 @@
 import { FunctionCallingConfigMode, GoogleGenAI, Type, type Content, type Part } from '@google/genai';
+import { createHash } from 'crypto';
 import type { PubmedArticle } from '@/types';
 import {
   pubmedFetchAbstracts,
@@ -145,12 +146,41 @@ const extractArticlesFromToolLog = (toolLog: PubmedToolLogEntry[]): PubmedArticl
   return articles;
 };
 
+let didLogKeyFingerprint = false;
+
+const fingerprintApiKey = (apiKey: string) => createHash('sha256').update(apiKey).digest('hex').slice(0, 8);
+
+const maybeLogKeyFingerprint = (apiKey: string) => {
+  if (process.env.NODE_ENV === 'production' || didLogKeyFingerprint) return;
+  didLogKeyFingerprint = true;
+  console.info('Gemini API key loaded for PubMed agent.', {
+    fingerprint: fingerprintApiKey(apiKey),
+    length: apiKey.length,
+  });
+};
+
 const getApiKey = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const rawKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const apiKey = typeof rawKey === 'string' ? rawKey.trim() : '';
   if (!apiKey) {
-    throw new Error('Gemini API key is not configured. Set GEMINI_API_KEY.');
+    throw new Error('Gemini API key is not configured. Set GEMINI_API_KEY (recommended).');
   }
+  maybeLogKeyFingerprint(apiKey);
   return apiKey;
+};
+
+const isQuotaError = (message: string) =>
+  /quota|rate limit|resource exhausted|billing|free tier/i.test(message || '');
+
+const buildQuotaErrorMessage = (message: string, fingerprint?: string) => {
+  const hint = fingerprint && process.env.NODE_ENV !== 'production' ? ` (key fp: ${fingerprint})` : '';
+  return [
+    `Gemini quota/billing error${hint}.`,
+    'Verify the key belongs to your paid Google AI Studio project, then restart the dev server.',
+    message ? `Original error: ${message}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ');
 };
 
 const coerceNumber = (value: unknown, fallback: number) => {
@@ -212,7 +242,9 @@ export const runPubmedAgentStream = async ({
   existingArticles: Array<{ pmid?: string; title?: string }>;
   emit: (event: PubmedAgentStreamEvent) => void;
 }): Promise<PubmedAgentResponse> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const apiKey = getApiKey();
+  const keyFingerprint = fingerprintApiKey(apiKey);
+  const ai = new GoogleGenAI({ apiKey });
   const systemInstruction = buildSystemInstruction(existingArticles);
   const model = DEFAULT_MODEL;
   const toolLog: PubmedToolLogEntry[] = [];
@@ -396,23 +428,32 @@ export const runPubmedAgentStream = async ({
   let finalText = '';
 
   for (let turn = 0; turn < MAX_TURNS; turn += 1) {
-    const stream = await ai.models.generateContentStream({
-      model,
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.2,
-        maxOutputTokens: 12000,
-        tools: [{ functionDeclarations: toolDefinitions }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO,
+    let stream: Awaited<ReturnType<typeof ai.models.generateContentStream>>;
+    try {
+      stream = await ai.models.generateContentStream({
+        model,
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.2,
+          maxOutputTokens: 12000,
+          tools: [{ functionDeclarations: toolDefinitions }],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: FunctionCallingConfigMode.AUTO,
+            },
           },
+          automaticFunctionCalling: { disable: true },
+          thinkingConfig: { includeThoughts: true },
         },
-        automaticFunctionCalling: { disable: true },
-        thinkingConfig: { includeThoughts: true },
-      },
-    });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Gemini request failed.';
+      if (isQuotaError(message)) {
+        throw new Error(buildQuotaErrorMessage(message, keyFingerprint));
+      }
+      throw error;
+    }
 
     const modelParts: Part[] = [];
     const pendingFunctionCalls: Array<Record<string, unknown>> = [];

@@ -1,3 +1,6 @@
+## 2025-12-30 06:02 UTC
+- (Commit: codex/fix-gemini-quota-diagnostics) Added Gemini key fingerprint logging in dev and improved quota error messaging for the PubMed agent.
+
 ## 2025-12-30 05:43 UTC
 - (Commit: codex/fix-pubmed-empty-reply) Replaced the generic PubMed fallback with a concise tool-based summary and added a backend warning when the model emits no text.
 
