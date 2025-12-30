@@ -434,6 +434,9 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
       const decoder = new TextDecoder();
       let buffer = '';
       const collectedEvents: PubmedAgentEvent[] = [];
+      const streamStartedAt = Date.now();
+      let streamedReply = '';
+      let didReceiveTerminalEvent = false;
 
       const handleFinal = (payload: { reply?: string; added?: PubmedArticle[]; removed?: string[] }) => {
         const reply = typeof payload.reply === 'string' ? payload.reply : 'Here are the latest PubMed results.';
@@ -494,6 +497,7 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
           if (event.type === 'token') {
             const text = typeof event.text === 'string' ? event.text : '';
             if (!text) continue;
+            streamedReply += text;
             updateStreamState(updatedChat.id, (prev) => ({
               ...prev,
               reply: `${prev.reply}${text}`,
@@ -557,10 +561,12 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
           }
 
           if (event.type === 'final') {
+            didReceiveTerminalEvent = true;
             handleFinal(event);
           }
 
           if (event.type === 'error') {
+            didReceiveTerminalEvent = true;
             const message = typeof event.message === 'string' ? event.message : 'PubMed agent failed.';
             const errorMessage: PubmedChatMessage = {
               id: generateId(),
@@ -586,15 +592,31 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
         }
       }
 
+      buffer += decoder.decode();
       if (buffer.trim()) {
         try {
           const event = JSON.parse(buffer);
           if (event?.type === 'final') {
+            didReceiveTerminalEvent = true;
             handleFinal(event);
           }
         } catch (err) {
           // ignore trailing buffer
         }
+      }
+
+      if (!didReceiveTerminalEvent) {
+        const trimmedReply = streamedReply.trim();
+        const fallbackReply = trimmedReply
+          ? `${trimmedReply}\n\n_Notice: The response ended early. If this looks incomplete, please retry._`
+          : 'The response ended unexpectedly. Please try again.';
+        console.warn('PubMed assistant stream ended without final event.', {
+          chatId: updatedChat.id,
+          elapsedMs: Date.now() - streamStartedAt,
+          replyLength: streamedReply.length,
+          eventCount: collectedEvents.length,
+        });
+        handleFinal({ reply: fallbackReply });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'PubMed agent failed.';

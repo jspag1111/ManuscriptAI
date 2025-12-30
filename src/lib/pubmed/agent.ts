@@ -402,7 +402,7 @@ export const runPubmedAgentStream = async ({
       config: {
         systemInstruction,
         temperature: 0.2,
-        maxOutputTokens: 1200,
+        maxOutputTokens: 12000,
         tools: [{ functionDeclarations: toolDefinitions }],
         toolConfig: {
           functionCallingConfig: {
@@ -482,11 +482,48 @@ export const runPubmedAgentStream = async ({
     }
   }
 
-  if (!finalText.trim()) {
-    finalText = 'I was unable to complete the PubMed search flow. Please try again with a more specific request.';
-  }
-
   const { added, removed: removedList } = finalizeResponse(toolLog, removed);
+
+  if (!finalText.trim()) {
+    const searchEntry = toolLog.find(
+      (entry) => entry.name === 'pubmed_search_pmids_generated_tool' && entry.result?.ok
+    );
+    const searchCount =
+      typeof searchEntry?.result?.count === 'number'
+        ? searchEntry.result.count
+        : Array.isArray(searchEntry?.result?.pmids)
+          ? searchEntry.result.pmids.length
+          : undefined;
+    const addedCount = added.length;
+    const removedCount = removedList.length;
+
+    const summaryBits: string[] = [];
+    if (typeof searchCount === 'number') {
+      summaryBits.push(`PubMed returned ${searchCount} matches`);
+    }
+    if (addedCount > 0) {
+      summaryBits.push(`added ${addedCount} article${addedCount === 1 ? '' : 's'} to the board`);
+    }
+    if (removedCount > 0) {
+      summaryBits.push(`removed ${removedCount} article${removedCount === 1 ? '' : 's'}`);
+    }
+
+    const summary = summaryBits.length > 0 ? `${summaryBits.join(', ')}.` : '';
+    finalText = [
+      summary || 'The PubMed tools ran, but I did not receive a full response from the model.',
+      'Please retry or narrow the request (e.g., date range, population, trial phase).',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    console.warn('PubMed agent produced no text output.', {
+      model,
+      toolCalls: toolLog.length,
+      addedCount,
+      removedCount,
+      lastUserMessageLength: lastUserMessage.length,
+    });
+  }
 
   emit({ type: 'final', reply: finalText, model, added, removed: removedList });
 

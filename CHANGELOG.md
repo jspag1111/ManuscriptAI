@@ -1,3 +1,10 @@
+## 2025-12-30 05:43 UTC
+- (Commit: codex/fix-pubmed-empty-reply) Replaced the generic PubMed fallback with a concise tool-based summary and added a backend warning when the model emits no text.
+
+## 2025-12-30 05:26 UTC
+- (Commit: codex/fix-pubmed-stream-fallback) Added a fallback to finalize PubMed Assistant replies when streams end without a terminal event, plus logging to surface unexpected stream cutoffs.
+- (Commit: codex/fix-pubmed-stream-fallback) Flushed the PubMed Assistant stream decoder on completion to avoid dropping trailing bytes.
+
 ## 2025-12-30 05:21 UTC
 - (Commit: codex/fix-pubmed-entity-decoding) Fixed PubMed abstract parsing to decode numeric XML entities so special characters render correctly.
 
