@@ -1,3 +1,6 @@
+## 2025-12-30 14:11 UTC
+- (Commit: codex/fix-mobile-workspace-scroll) Fixed the manuscript workspace container to allow mobile scrolling so the right-side panels remain reachable.
+
 ## 2025-12-30 06:02 UTC
 - (Commit: codex/fix-gemini-quota-diagnostics) Added Gemini key fingerprint logging in dev and improved quota error messaging for the PubMed agent.
 

@@ -452,8 +452,8 @@ const ManuscriptApp: React.FC = () => {
   const activeSection = currentProject.sections.find(s => s.id === activeSectionId);
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-transparent overflow-hidden">
-      <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8 py-6 h-full flex flex-col gap-4">
+    <div className="min-h-[calc(100vh-4rem)] bg-transparent overflow-y-auto lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
+      <div className="max-w-[95vw] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:h-full flex flex-col gap-4">
         {/* Top Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 border border-slate-200 rounded-2xl shadow-sm px-4 py-3">
           <div className="flex items-center gap-3">
