@@ -469,7 +469,6 @@ export const runPubmedAgentStream = async ({
         }
         if (part?.text) {
           finalText += part.text;
-          emit({ type: 'token', text: part.text, turn });
           modelParts.push(part);
           continue;
         }

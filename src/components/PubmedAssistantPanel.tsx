@@ -498,12 +498,6 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
             const text = typeof event.text === 'string' ? event.text : '';
             if (!text) continue;
             streamedReply += text;
-            updateStreamState(updatedChat.id, (prev) => ({
-              ...prev,
-              reply: `${prev.reply}${text}`,
-              isStreaming: true,
-              isOpen: true,
-            }));
           }
 
           if (event.type === 'thought') {
@@ -820,14 +814,6 @@ const PubmedAssistantPanel: React.FC<PubmedAssistantPanelProps> = ({ project, on
                     onToggle: handleToggleActivity,
                   })
                 : null}
-              {activeStreamState.reply ? (
-                <div className="rounded-2xl px-4 py-2 text-sm shadow-sm bg-slate-50 border border-slate-200 text-slate-700">
-                  <div
-                    className="space-y-3 text-sm leading-relaxed text-slate-700 [&_p]:leading-relaxed [&_h4]:text-sm [&_h4]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:bg-slate-200/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(activeStreamState.reply) }}
-                  />
-                </div>
-              ) : null}
             </div>
           ) : null}
         </div>

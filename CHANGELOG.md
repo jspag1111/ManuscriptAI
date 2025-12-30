@@ -1,3 +1,6 @@
+## 2025-12-30 14:54 UTC
+- (Commit: codex/disable-pubmed-final-stream) Changed the PubMed Assistant to avoid streaming the final reply, while keeping thought/tool activity updates.
+
 ## 2025-12-30 14:11 UTC
 - (Commit: codex/fix-mobile-workspace-scroll) Fixed the manuscript workspace container to allow mobile scrolling so the right-side panels remain reachable.
 
