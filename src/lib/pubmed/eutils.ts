@@ -50,13 +50,36 @@ const chunk = <T,>(values: T[], size: number): T[][] => {
   return out;
 };
 
-const decodeXml = (value: string) =>
+const decodeNumericEntities = (value: string) =>
   value
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => {
+      const code = Number.parseInt(hex, 16);
+      if (!Number.isFinite(code)) return match;
+      try {
+        return String.fromCodePoint(code);
+      } catch {
+        return match;
+      }
+    })
+    .replace(/&#(\d+);/g, (match, num) => {
+      const code = Number.parseInt(num, 10);
+      if (!Number.isFinite(code)) return match;
+      try {
+        return String.fromCodePoint(code);
+      } catch {
+        return match;
+      }
+    });
+
+const decodeXml = (value: string) => {
+  const decoded = value
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&');
+  return decodeNumericEntities(decoded);
+};
 
 const stripTags = (value: string) => value.replace(/<[^>]*>/g, '');
 

@@ -1,3 +1,6 @@
+## 2025-12-30 05:21 UTC
+- (Commit: codex/fix-pubmed-entity-decoding) Fixed PubMed abstract parsing to decode numeric XML entities so special characters render correctly.
+
 ## 2025-12-29 03:24 UTC
 - (Commit: codex/pubmed-agent-trace-persist) Persisted PubMed Assistant thought/tool traces with each assistant reply, rendered their markdown, and positioned the trace block above the final response.
 
