@@ -39,7 +39,7 @@ export type PubmedToolLogEntry = {
 };
 
 const DEFAULT_MODEL = process.env.MANUSCRIPTAI_LLM_MODEL_FAST || 'gemini-3-flash-preview';
-const MAX_TURNS = 6;
+const MAX_TURNS = 12;
 
 const normalizeWords = (value: string) => (value || '').toLowerCase().match(/[a-z0-9]+/g) || [];
 
@@ -89,7 +89,9 @@ const buildSystemInstruction = (articles: Array<{ pmid?: string; title?: string 
     '- When searching, generate PubMed Advanced Search queries with field tags (e.g., [Mesh], [tiab], [pt], [lang], date range).',
     '- Apply humans filter unless the user explicitly requests animal-only or preclinical work: NOT (animals[mh] NOT humans[mh]).',
     '- Prefer English unless the user explicitly requests otherwise.',
-    '- Use tools to search, then fetch titles, and fetch abstracts for the most promising items.',
+    '- Use tools to search, then fetch titles to review relevance. Fetching titles does NOT add items to the board.',
+    '- Only add items to the board by calling pubmed_add_articles_tool with selected PMIDs.',
+    '- pubmed_add_articles_tool will fetch full metadata (abstract, year, journal, etc.) for the board.',
     '- Avoid duplicates by checking the current article board.',
     '- If the user asks to remove items, call pubmed_remove_articles_tool with PMIDs or title snippets.',
     '',
@@ -98,26 +100,10 @@ const buildSystemInstruction = (articles: Array<{ pmid?: string; title?: string 
   ].join('\n');
 };
 
-const extractArticlesFromToolLog = (toolLog: PubmedToolLogEntry[]): PubmedArticle[] => {
-  const titlesByPmid = new Map<string, PubmedSummary>();
-  const abstractsByPmid = new Map<string, PubmedAbstractRecord>();
-
-  for (const entry of toolLog) {
-    if (entry.name === 'pubmed_fetch_titles_tool' && entry.result?.ok && Array.isArray(entry.result?.items)) {
-      for (const item of entry.result.items as PubmedSummary[]) {
-        if (!item?.pmid) continue;
-        titlesByPmid.set(String(item.pmid), item);
-      }
-    }
-
-    if (entry.name === 'pubmed_fetch_abstracts_tool' && entry.result?.ok && Array.isArray(entry.result?.items)) {
-      for (const item of entry.result.items as PubmedAbstractRecord[]) {
-        if (!item?.pmid) continue;
-        abstractsByPmid.set(String(item.pmid), item);
-      }
-    }
-  }
-
+const buildArticlesFromRecords = (
+  titlesByPmid: Map<string, PubmedSummary>,
+  abstractsByPmid: Map<string, PubmedAbstractRecord>
+): PubmedArticle[] => {
   const pmids = new Set<string>([...titlesByPmid.keys(), ...abstractsByPmid.keys()]);
   const now = Date.now();
 
@@ -144,6 +130,26 @@ const extractArticlesFromToolLog = (toolLog: PubmedToolLogEntry[]): PubmedArticl
   }
 
   return articles;
+};
+
+const extractArticlesFromToolLog = (toolLog: PubmedToolLogEntry[]): PubmedArticle[] => {
+  const addedArticles: PubmedArticle[] = [];
+
+  for (const entry of toolLog) {
+    if (entry.name === 'pubmed_add_articles_tool' && entry.result?.ok && Array.isArray(entry.result?.items)) {
+      for (const item of entry.result.items as PubmedArticle[]) {
+        if (!item?.pmid && !item?.id) continue;
+        addedArticles.push(item);
+      }
+      continue;
+    }
+  }
+
+  if (addedArticles.length > 0) {
+    return addedArticles;
+  }
+
+  return [];
 };
 
 let didLogKeyFingerprint = false;
@@ -212,6 +218,10 @@ const summarizeToolResult = (name: string, result: Record<string, unknown>) => {
   if (name === 'pubmed_similar_pmids_tool') {
     const items = Array.isArray(result.similar_pmids) ? result.similar_pmids.length : undefined;
     return `Found related articles${items !== undefined ? ` (${items})` : ''}.`;
+  }
+  if (name === 'pubmed_add_articles_tool') {
+    const items = Array.isArray(result.items) ? result.items.length : undefined;
+    return `Added articles to board${items !== undefined ? ` (${items})` : ''}.`;
   }
   if (name === 'pubmed_remove_articles_tool') {
     const removed = Array.isArray(result.removed) ? result.removed.length : undefined;
@@ -332,6 +342,26 @@ export const runPubmedAgentStream = async ({
       },
     },
     {
+      name: 'pubmed_add_articles_tool',
+      description:
+        'Add selected PubMed articles to the board by PMID. Fetches full metadata (abstract, year, journal, etc.) automatically.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          pmids: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'List of PubMed IDs to add to the board.',
+          },
+          reason: {
+            type: Type.STRING,
+            description: 'Optional short rationale for why these items were selected.',
+          },
+        },
+        required: ['pmids'],
+      },
+    },
+    {
       name: 'pubmed_remove_articles_tool',
       description: 'Remove items from the article board by PMID or title snippet.',
       parameters: {
@@ -402,6 +432,47 @@ export const runPubmedAgentStream = async ({
       if (!pmid) return { ok: false, error: 'pmid is required.' };
       const similar = await pubmedFindSimilar(pmid, retmax);
       return { ok: true, pmid, similar_pmids: similar };
+    },
+    pubmed_add_articles_tool: async (args) => {
+      const inputPmids = toStringArray(args.pmids);
+      if (inputPmids.length === 0) return { ok: false, error: 'pmids are required.' };
+      const existingPmids = new Set(availableArticles.map((article) => article.pmid).filter(Boolean) as string[]);
+      const pmids = inputPmids.filter((pmid) => !existingPmids.has(pmid)).slice(0, 40);
+
+      if (pmids.length === 0) {
+        return {
+          ok: true,
+          items: [],
+          skipped: inputPmids,
+          reason: typeof args.reason === 'string' ? args.reason : undefined,
+        };
+      }
+
+      const [summaryItems, abstractItems] = await Promise.all([
+        pubmedFetchSummary(pmids),
+        pubmedFetchAbstracts(pmids),
+      ]);
+
+      const titlesByPmid = new Map<string, PubmedSummary>();
+      const abstractsByPmid = new Map<string, PubmedAbstractRecord>();
+
+      for (const item of summaryItems) {
+        if (!item?.pmid) continue;
+        titlesByPmid.set(String(item.pmid), item);
+      }
+      for (const item of abstractItems) {
+        if (!item?.pmid) continue;
+        abstractsByPmid.set(String(item.pmid), item);
+      }
+
+      const items = buildArticlesFromRecords(titlesByPmid, abstractsByPmid);
+
+      return {
+        ok: true,
+        items,
+        skipped: inputPmids.filter((pmid) => existingPmids.has(pmid)),
+        reason: typeof args.reason === 'string' ? args.reason : undefined,
+      };
     },
     pubmed_remove_articles_tool: async (args) => {
       const pmids = new Set(toStringArray(args.pmids));

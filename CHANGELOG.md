@@ -1,3 +1,6 @@
+## 2026-01-02 22:51 UTC
+- (Commit: codex/pubmed-board-gating) Changed the PubMed agent to require an explicit add-to-board tool call, increased max turns, and fetch full metadata when adding articles.
+
 ## 2025-12-30 14:54 UTC
 - (Commit: codex/disable-pubmed-final-stream) Changed the PubMed Assistant to avoid streaming the final reply, while keeping thought/tool activity updates.
 
