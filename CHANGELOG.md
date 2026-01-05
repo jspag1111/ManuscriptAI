@@ -1,3 +1,8 @@
+## 2026-01-05 04:31 UTC
+- (Commit: codex/add-openai-chatkit-assistant) Added an assistant mode toggle with an OpenAI ChatKit panel sharing the PubMed article board, plus client tools for board updates and markdown downloads.
+- (Commit: codex/add-openai-chatkit-assistant) Removed the Discover tab from the Reference Manager UI.
+- (Commit: codex/add-openai-chatkit-assistant) Added ChatKit session API support and documented OpenAI ChatKit environment variables.
+
 ## 2026-01-05 03:15 UTC
 - (Commit: codex/remove-chatkit-skill-from-repo) Removed the ChatKit embed skill artifacts from the repository after installing them into the Codex skills directory.
 

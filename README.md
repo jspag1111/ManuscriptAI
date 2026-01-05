@@ -4,7 +4,7 @@
 
 # ManuscriptAI (Next.js)
 
-Next.js 16 app for drafting and managing research manuscripts plus general writing projects with AI-assisted tooling (Gemini), inline citation handling, figure/table management, and DOCX export. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
+Next.js 16 app for drafting and managing research manuscripts plus general writing projects with AI-assisted tooling (Gemini plus an optional OpenAI ChatKit assistant), inline citation handling, figure/table management, and DOCX export. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
 
 ## Tech Stack
 - Next.js App Router + React 19, Tailwind CSS for styling
@@ -29,6 +29,8 @@ Next.js 16 app for drafting and managing research manuscripts plus general writi
     - Server-side key (recommended): `GEMINI_API_KEY` (used by the PubMed Discover agent and the PubMed Assistant chat).
      - Legacy/client key: `NEXT_PUBLIC_GEMINI_API_KEY` (still used by existing client-side drafting/refinement code).
      - Optional model overrides: `MANUSCRIPTAI_LLM_MODEL_FAST` and `MANUSCRIPTAI_LLM_MODEL_QUALITY`.
+   - **OpenAI ChatKit (optional, for the OpenAI assistant tab):** `OPENAI_API_KEY` and `OPENAI_CHATKIT_WORKFLOW_ID`.
+     - Configure the ChatKit workflow with client tools named `article_board_list`, `article_board_add`, `article_board_remove`, and `document_create` so it can read/update the shared article board and create markdown downloads.
    - **PubMed / NCBI (optional but recommended for higher rate limits):** `NCBI_API_KEY`, plus `NCBI_EMAIL` and `NCBI_TOOL` for polite usage.
    - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
    - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).
