@@ -1,3 +1,6 @@
+## 2026-01-05 03:15 UTC
+- (Commit: codex/remove-chatkit-skill-from-repo) Removed the ChatKit embed skill artifacts from the repository after installing them into the Codex skills directory.
+
 ## 2026-01-05 03:11 UTC
 - (Commit: codex/add-chatkit-embed-skill) Added a ChatKit embed skill with OpenAI-hosted and self-hosted workflows plus copied doc snippets for setup, production, and debugging references.
 
