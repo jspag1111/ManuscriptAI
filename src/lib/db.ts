@@ -52,6 +52,50 @@ const ensureSchema = async (client: Client) => {
   `);
 
   await client.execute('CREATE INDEX IF NOT EXISTS idx_discover_runs_user_id ON discover_runs(user_id)');
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS chatkit_threads (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_item_at INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+  `);
+
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_chatkit_threads_user_id ON chatkit_threads(user_id)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_chatkit_threads_project_id ON chatkit_threads(project_id)');
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS chatkit_items (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+  `);
+
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_chatkit_items_thread_id ON chatkit_items(thread_id)');
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS chatkit_documents (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      format TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      content TEXT NOT NULL
+    );
+  `);
+
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_chatkit_documents_user_id ON chatkit_documents(user_id)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_chatkit_documents_project_id ON chatkit_documents(project_id)');
 };
 
 const findSeedFile = (): string | null => {
@@ -192,6 +236,20 @@ const getAllProjects = async (userId: string): Promise<Project[]> => {
   return rows.rows.map((row) => normalizeProject(JSON.parse(String(row.data))));
 };
 
+const getProjectById = async (id: string, userId: string): Promise<Project | null> => {
+  if (!userId) {
+    throw new Error('User id is required to load a project.');
+  }
+  const client = await getClient();
+  const row = await client.execute({
+    sql: 'SELECT data FROM projects WHERE id = ? AND user_id = ? LIMIT 1',
+    args: [id, userId],
+  });
+  const data = row.rows?.[0]?.data;
+  if (!data) return null;
+  return normalizeProject(JSON.parse(String(data)));
+};
+
 const getProjectOwner = async (client: Client, id: string): Promise<string | null> => {
   const row = await client.execute({
     sql: 'SELECT user_id FROM projects WHERE id = ? LIMIT 1',
@@ -263,6 +321,7 @@ const deleteProjectRecord = async (id: string, userId: string) => {
 
 export const projectStore = {
   getAll: getAllProjects,
+  getById: getProjectById,
   save: saveProjectRecord,
   delete: deleteProjectRecord,
   dbUrl: (DB_TARGET === 'local' || DB_TARGET === 'sqlite' || DB_TARGET === 'file' || (!DB_TARGET && !TURSO_URL))
@@ -307,4 +366,269 @@ export const discoverRunStore = {
     });
     return run;
   },
+};
+
+type ChatKitThreadRecord = {
+  id: string;
+  userId: string;
+  projectId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  lastItemAt: number;
+  data: Record<string, unknown>;
+};
+
+type ChatKitItemRecord = {
+  id: string;
+  threadId: string;
+  userId: string;
+  createdAt: number;
+  updatedAt: number;
+  data: Record<string, unknown>;
+};
+
+type ChatKitDocumentRecord = {
+  id: string;
+  userId: string;
+  projectId: string;
+  filename: string;
+  format: string;
+  createdAt: number;
+  content: string;
+};
+
+const listChatkitThreads = async ({
+  userId,
+  projectId,
+  limit,
+  order,
+}: {
+  userId: string;
+  projectId: string;
+  limit?: number;
+  order?: 'asc' | 'desc';
+}): Promise<ChatKitThreadRecord[]> => {
+  if (!userId) {
+    throw new Error('User id is required to list ChatKit threads.');
+  }
+  const client = await getClient();
+  const orderBy = order === 'asc' ? 'ASC' : 'DESC';
+  const rows = await client.execute({
+    sql: `
+      SELECT id, user_id, project_id, title, created_at, updated_at, last_item_at, data
+      FROM chatkit_threads
+      WHERE user_id = ? AND project_id = ?
+      ORDER BY last_item_at ${orderBy}
+      ${typeof limit === 'number' ? 'LIMIT ?' : ''}
+    `,
+    args: typeof limit === 'number' ? [userId, projectId, limit] : [userId, projectId],
+  });
+  return rows.rows.map((row: any) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    projectId: String(row.project_id),
+    title: String(row.title),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+    lastItemAt: Number(row.last_item_at),
+    data: JSON.parse(String(row.data)),
+  }));
+};
+
+const getChatkitThread = async (threadId: string, userId: string): Promise<ChatKitThreadRecord | null> => {
+  if (!userId) {
+    throw new Error('User id is required to load a ChatKit thread.');
+  }
+  const client = await getClient();
+  const row = await client.execute({
+    sql: `
+      SELECT id, user_id, project_id, title, created_at, updated_at, last_item_at, data
+      FROM chatkit_threads
+      WHERE id = ? AND user_id = ?
+      LIMIT 1
+    `,
+    args: [threadId, userId],
+  });
+  const data = row.rows?.[0];
+  if (!data) return null;
+  return {
+    id: String(data.id),
+    userId: String(data.user_id),
+    projectId: String(data.project_id),
+    title: String(data.title),
+    createdAt: Number(data.created_at),
+    updatedAt: Number(data.updated_at),
+    lastItemAt: Number(data.last_item_at),
+    data: JSON.parse(String(data.data)),
+  };
+};
+
+const saveChatkitThread = async (record: ChatKitThreadRecord) => {
+  if (!record.userId) {
+    throw new Error('User id is required to save a ChatKit thread.');
+  }
+  const client = await getClient();
+  await client.execute({
+    sql: `
+      INSERT INTO chatkit_threads (id, user_id, project_id, title, created_at, updated_at, last_item_at, data)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title,
+        updated_at=excluded.updated_at,
+        last_item_at=excluded.last_item_at,
+        data=excluded.data
+    `,
+    args: [
+      record.id,
+      record.userId,
+      record.projectId,
+      record.title,
+      record.createdAt,
+      record.updatedAt,
+      record.lastItemAt,
+      JSON.stringify(record.data),
+    ],
+  });
+  return record;
+};
+
+const deleteChatkitThread = async (threadId: string, userId: string) => {
+  if (!userId) {
+    throw new Error('User id is required to delete a ChatKit thread.');
+  }
+  const client = await getClient();
+  await client.execute({
+    sql: 'DELETE FROM chatkit_items WHERE thread_id = ? AND user_id = ?',
+    args: [threadId, userId],
+  });
+  await client.execute({
+    sql: 'DELETE FROM chatkit_threads WHERE id = ? AND user_id = ?',
+    args: [threadId, userId],
+  });
+};
+
+const listChatkitItems = async ({
+  threadId,
+  userId,
+  limit,
+  order,
+}: {
+  threadId: string;
+  userId: string;
+  limit?: number;
+  order?: 'asc' | 'desc';
+}): Promise<ChatKitItemRecord[]> => {
+  if (!userId) {
+    throw new Error('User id is required to list ChatKit items.');
+  }
+  const client = await getClient();
+  const orderBy = order === 'asc' ? 'ASC' : 'DESC';
+  const rows = await client.execute({
+    sql: `
+      SELECT id, thread_id, user_id, created_at, updated_at, data
+      FROM chatkit_items
+      WHERE thread_id = ? AND user_id = ?
+      ORDER BY created_at ${orderBy}
+      ${typeof limit === 'number' ? 'LIMIT ?' : ''}
+    `,
+    args: typeof limit === 'number' ? [threadId, userId, limit] : [threadId, userId],
+  });
+  return rows.rows.map((row: any) => ({
+    id: String(row.id),
+    threadId: String(row.thread_id),
+    userId: String(row.user_id),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+    data: JSON.parse(String(row.data)),
+  }));
+};
+
+const saveChatkitItem = async (record: ChatKitItemRecord) => {
+  if (!record.userId) {
+    throw new Error('User id is required to save a ChatKit item.');
+  }
+  const client = await getClient();
+  await client.execute({
+    sql: `
+      INSERT INTO chatkit_items (id, thread_id, user_id, created_at, updated_at, data)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        updated_at=excluded.updated_at,
+        data=excluded.data
+    `,
+    args: [
+      record.id,
+      record.threadId,
+      record.userId,
+      record.createdAt,
+      record.updatedAt,
+      JSON.stringify(record.data),
+    ],
+  });
+  return record;
+};
+
+const createChatkitDocument = async (record: ChatKitDocumentRecord) => {
+  if (!record.userId) {
+    throw new Error('User id is required to save a ChatKit document.');
+  }
+  const client = await getClient();
+  await client.execute({
+    sql: `
+      INSERT INTO chatkit_documents (id, user_id, project_id, filename, format, created_at, content)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      record.id,
+      record.userId,
+      record.projectId,
+      record.filename,
+      record.format,
+      record.createdAt,
+      record.content,
+    ],
+  });
+  return record;
+};
+
+const getChatkitDocument = async (id: string, userId: string): Promise<ChatKitDocumentRecord | null> => {
+  if (!userId) {
+    throw new Error('User id is required to load a ChatKit document.');
+  }
+  const client = await getClient();
+  const row = await client.execute({
+    sql: `
+      SELECT id, user_id, project_id, filename, format, created_at, content
+      FROM chatkit_documents
+      WHERE id = ? AND user_id = ?
+      LIMIT 1
+    `,
+    args: [id, userId],
+  });
+  const data = row.rows?.[0];
+  if (!data) return null;
+  return {
+    id: String(data.id),
+    userId: String(data.user_id),
+    projectId: String(data.project_id),
+    filename: String(data.filename),
+    format: String(data.format),
+    createdAt: Number(data.created_at),
+    content: String(data.content),
+  };
+};
+
+export const chatkitStore = {
+  listThreads: listChatkitThreads,
+  getThread: getChatkitThread,
+  saveThread: saveChatkitThread,
+  deleteThread: deleteChatkitThread,
+  listItems: listChatkitItems,
+  saveItem: saveChatkitItem,
+};
+
+export const chatkitDocumentStore = {
+  create: createChatkitDocument,
+  get: getChatkitDocument,
 };

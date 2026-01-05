@@ -29,8 +29,11 @@ Next.js 16 app for drafting and managing research manuscripts plus general writi
     - Server-side key (recommended): `GEMINI_API_KEY` (used by the PubMed Discover agent and the PubMed Assistant chat).
      - Legacy/client key: `NEXT_PUBLIC_GEMINI_API_KEY` (still used by existing client-side drafting/refinement code).
      - Optional model overrides: `MANUSCRIPTAI_LLM_MODEL_FAST` and `MANUSCRIPTAI_LLM_MODEL_QUALITY`.
-   - **OpenAI ChatKit (optional, for the OpenAI assistant tab):** `OPENAI_API_KEY` and `OPENAI_CHATKIT_WORKFLOW_ID`.
-     - Configure the ChatKit workflow with client tools named `article_board_list`, `article_board_add`, `article_board_remove`, and `document_create` so it can read/update the shared article board and create markdown downloads.
+   - **OpenAI ChatKit (optional, for the OpenAI assistant tab):**
+     - Server key: `OPENAI_API_KEY`.
+     - Optional model override: `MANUSCRIPTAI_OPENAI_MODEL` (defaults to `gpt-4.1`).
+     - ChatKit browser config: `NEXT_PUBLIC_CHATKIT_DOMAIN_KEY` (required in production) and optional `NEXT_PUBLIC_CHATKIT_API_URL` (defaults to `/api/chatkit`).
+     - The self-hosted ChatKit API uses the OpenAI Agents SDK with tools named `article_board_list`, `article_board_add`, `article_board_remove`, and `document_create` so it can read/update the shared article board and create markdown downloads.
    - **PubMed / NCBI (optional but recommended for higher rate limits):** `NCBI_API_KEY`, plus `NCBI_EMAIL` and `NCBI_TOOL` for polite usage.
    - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
    - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).

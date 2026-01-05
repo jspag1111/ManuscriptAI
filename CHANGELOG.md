@@ -1,3 +1,7 @@
+## 2026-01-05 05:09 UTC
+- (Commit: codex/add-chatkit-agent-flow) Added a secured ChatKit document download endpoint for OpenAI agent-generated markdown exports.
+- (Commit: codex/add-chatkit-agent-flow) Documented the self-hosted OpenAI ChatKit setup and environment variables.
+
 ## 2026-01-05 04:31 UTC
 - (Commit: codex/add-openai-chatkit-assistant) Added an assistant mode toggle with an OpenAI ChatKit panel sharing the PubMed article board, plus client tools for board updates and markdown downloads.
 - (Commit: codex/add-openai-chatkit-assistant) Removed the Discover tab from the Reference Manager UI.
