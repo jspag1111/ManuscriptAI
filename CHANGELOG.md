@@ -1,3 +1,6 @@
+## 2026-01-05 03:11 UTC
+- (Commit: codex/add-chatkit-embed-skill) Added a ChatKit embed skill with OpenAI-hosted and self-hosted workflows plus copied doc snippets for setup, production, and debugging references.
+
 ## 2025-12-30 14:54 UTC
 - (Commit: codex/disable-pubmed-final-stream) Changed the PubMed Assistant to avoid streaming the final reply, while keeping thought/tool activity updates.
 
