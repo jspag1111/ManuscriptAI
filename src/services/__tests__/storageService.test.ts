@@ -64,7 +64,7 @@ describe('storageService', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse([mockProject])));
     const projects = await getProjects();
 
-    expect(fetch).toHaveBeenCalledWith('/api/projects');
+    expect(fetch).toHaveBeenCalledWith('/api/projects', expect.objectContaining({ credentials: 'include' }));
     expect(projects[0].manuscriptMetadata).toEqual({ authors: [], affiliations: [] });
     expect(projects[0].sections[0].useReferences).toBe(true);
     expect(projects[0].figures[0]).toMatchObject({
@@ -83,7 +83,8 @@ describe('storageService', () => {
 
     expect(fetch).toHaveBeenCalledWith('/api/projects', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify(project)
+      body: JSON.stringify(project),
+      credentials: 'include',
     }));
     expect(saved.references).toEqual([]);
   });
@@ -91,6 +92,16 @@ describe('storageService', () => {
   it('calls delete endpoint', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse({}, true)));
     await deleteProject('delete-me');
-    expect(fetch).toHaveBeenCalledWith('/api/projects/delete-me', expect.objectContaining({ method: 'DELETE' }));
+    expect(fetch).toHaveBeenCalledWith('/api/projects/delete-me', expect.objectContaining({ method: 'DELETE', credentials: 'include' }));
+  });
+
+  it('adds authorization header when token is provided', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createFetchResponse([])));
+    await getProjects({ token: 'token-123' });
+    const mockFetch = fetch as unknown as { mock: { calls: any[][] } };
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init?.credentials).toBe('include');
+    const headers = init?.headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer token-123');
   });
 });

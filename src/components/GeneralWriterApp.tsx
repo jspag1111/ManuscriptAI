@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@clerk/nextjs';
 import { ArrowLeft, Clock, FileText, History, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { HistoryViewer } from '@/components/HistoryViewer';
@@ -15,6 +16,16 @@ import { calculateTextStats } from '@/utils/textStats';
 const GENERAL_PROJECT_TYPE = 'GENERAL';
 
 type WriterPanel = 'DRAFT' | 'BRIEF' | 'HISTORY';
+
+const projectErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message === 'Unauthorized') {
+    return 'Your session has expired. Please sign in again.';
+  }
+  return 'Failed to load projects from local database.';
+};
+
+const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
+const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
 
 const createDraftSection = (): Section => ({
   id: generateId(),
@@ -34,6 +45,7 @@ const createDraftSection = (): Section => ({
 });
 
 const GeneralWriterApp: React.FC = () => {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [view, setView] = useState<AppView>(AppView.DASHBOARD);
@@ -45,9 +57,6 @@ const GeneralWriterApp: React.FC = () => {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
-
-  const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
-  const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
 
   const activeSection = useMemo(
     () => currentProject?.sections.find((section) => section.id === activeSectionId) ?? null,
@@ -64,23 +73,31 @@ const GeneralWriterApp: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    if (!isLoaded) {
+      return () => { isMounted = false; };
+    }
+    if (!isSignedIn) {
+      setIsLoadingProjects(false);
+      return () => { isMounted = false; };
+    }
     const load = async () => {
       setProjectError(null);
       try {
-        const loaded = await getProjects();
+        const token = await getToken();
+        const loaded = await getProjects({ token });
         if (!isMounted) return;
         const general = loaded.filter((project) => project.projectType === GENERAL_PROJECT_TYPE);
         setProjects(sortProjects(general));
       } catch (e) {
         console.error('Failed to load projects from database', e);
-        if (isMounted) setProjectError('Failed to load projects from local database.');
+        if (isMounted) setProjectError(projectErrorMessage(e));
       } finally {
         if (isMounted) setIsLoadingProjects(false);
       }
     };
     load();
     return () => { isMounted = false; };
-  }, []);
+  }, [getToken, isLoaded, isSignedIn]);
 
   const handleCreateProjectClick = () => {
     setNewProjectTitle('');
@@ -97,7 +114,8 @@ const GeneralWriterApp: React.FC = () => {
     newProject.sections = [createDraftSection()];
 
     try {
-      const saved = await saveProject(newProject);
+      const token = await getToken();
+      const saved = await saveProject(newProject, { token });
       setProjects(prev => upsertProject(prev, saved));
       setCurrentProject(saved);
       setActiveSectionId(saved.sections[0]?.id || null);
@@ -115,7 +133,8 @@ const GeneralWriterApp: React.FC = () => {
     e.stopPropagation();
     if (confirm('Are you sure? This cannot be undone.')) {
       try {
-        await deleteProject(id);
+        const token = await getToken();
+        await deleteProject(id, { token });
         setProjects(prev => prev.filter(p => p.id !== id));
         if (currentProject?.id === id) {
           setCurrentProject(null);
@@ -132,17 +151,17 @@ const GeneralWriterApp: React.FC = () => {
   const handleUpdateProject = (updatedProject: Project) => {
     const projectWithTimestamp = { ...updatedProject, lastModified: Date.now() };
     setCurrentProject(projectWithTimestamp);
-    saveProject(projectWithTimestamp)
-      .then((saved) => {
-        setCurrentProject(saved);
-        if (saved.projectType === GENERAL_PROJECT_TYPE) {
-          setProjects(prev => upsertProject(prev, saved));
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to save project', err);
-        alert('Failed to save project changes.');
-      });
+    (async () => {
+      const token = await getToken();
+      const saved = await saveProject(projectWithTimestamp, { token });
+      setCurrentProject(saved);
+      if (saved.projectType === GENERAL_PROJECT_TYPE) {
+        setProjects(prev => upsertProject(prev, saved));
+      }
+    })().catch((err) => {
+      console.error('Failed to save project', err);
+      alert('Failed to save project changes.');
+    });
   };
 
   const handleUpdateSection = (updatedSection: Section) => {

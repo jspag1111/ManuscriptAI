@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@clerk/nextjs';
 import { DEFAULT_SECTIONS } from '@/constants';
 import { Button } from '@/components/Button';
 import { FigureGenerator } from '@/components/FigureGenerator';
@@ -18,7 +19,18 @@ import { getBibliographyOrder } from '@/utils/citationUtils';
 import { calculateTextStats } from '@/utils/textStats';
 import { ArrowLeft, BookOpen, Check, Download, Edit2, FileText, Image as ImageIcon, Info, Plus, Save, Trash2, X } from 'lucide-react';
 
+const isManuscriptProject = (project: Project) => project.projectType !== 'GENERAL';
+const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
+const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
+const projectErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message === 'Unauthorized') {
+    return 'Your session has expired. Please sign in again.';
+  }
+  return 'Failed to load projects from local database.';
+};
+
 const ManuscriptApp: React.FC = () => {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [view, setView] = useState<AppView>(AppView.DASHBOARD);
@@ -114,30 +126,34 @@ const ManuscriptApp: React.FC = () => {
     [currentProject]
   );
 
-  const isManuscriptProject = (project: Project) => project.projectType !== 'GENERAL';
-  const sortProjects = (items: Project[]) => [...items].sort((a, b) => b.lastModified - a.lastModified);
-  const upsertProject = (items: Project[], project: Project) => sortProjects([project, ...items.filter(p => p.id !== project.id)]);
-
   // Load initial data
   useEffect(() => {
     let isMounted = true;
+    if (!isLoaded) {
+      return () => { isMounted = false; };
+    }
+    if (!isSignedIn) {
+      setIsLoadingProjects(false);
+      return () => { isMounted = false; };
+    }
     const load = async () => {
       setProjectError(null);
       try {
-        const loaded = await getProjects();
+        const token = await getToken();
+        const loaded = await getProjects({ token });
         if (!isMounted) return;
         const manuscripts = loaded.filter(isManuscriptProject);
         setProjects(sortProjects(manuscripts));
       } catch (e) {
         console.error('Failed to load projects from database', e);
-        if (isMounted) setProjectError('Failed to load projects from local database.');
+        if (isMounted) setProjectError(projectErrorMessage(e));
       } finally {
         if (isMounted) setIsLoadingProjects(false);
       }
     };
     load();
     return () => { isMounted = false; };
-  }, []);
+  }, [getToken, isLoaded, isSignedIn]);
 
   const handleCreateProjectClick = () => {
     setNewProjectTitle('');
@@ -168,7 +184,8 @@ const ManuscriptApp: React.FC = () => {
     }));
 
     try {
-      const saved = await saveProject(newProject);
+      const token = await getToken();
+      const saved = await saveProject(newProject, { token });
       setProjects(prev => upsertProject(prev, saved));
       setCurrentProject(saved);
       setActiveSectionId(saved.sections[0]?.id || null);
@@ -185,7 +202,8 @@ const ManuscriptApp: React.FC = () => {
     e.stopPropagation();
     if (confirm("Are you sure? This cannot be undone.")) {
       try {
-        await deleteProject(id);
+        const token = await getToken();
+        await deleteProject(id, { token });
         setProjects(prev => prev.filter(p => p.id !== id));
         if (currentProject?.id === id) {
           setCurrentProject(null);
@@ -202,15 +220,15 @@ const ManuscriptApp: React.FC = () => {
   const handleUpdateProject = (updatedProject: Project) => {
     const projectWithTimestamp = { ...updatedProject, lastModified: Date.now() };
     setCurrentProject(projectWithTimestamp);
-    saveProject(projectWithTimestamp)
-      .then((saved) => {
+    (async () => {
+      const token = await getToken();
+      const saved = await saveProject(projectWithTimestamp, { token });
       setCurrentProject(saved);
       setProjects(prev => (isManuscriptProject(saved) ? upsertProject(prev, saved) : prev));
-      })
-      .catch((err) => {
-        console.error('Failed to save project', err);
-        alert('Failed to save project changes.');
-      });
+    })().catch((err) => {
+      console.error('Failed to save project', err);
+      alert('Failed to save project changes.');
+    });
   };
 
   const handleUpdateSection = (updatedSection: Section) => {

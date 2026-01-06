@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileText } from 'lucide-react';
 import { ChatKit, useChatKit } from '@openai/chatkit-react';
+import { useAuth } from '@clerk/nextjs';
 
 import PubmedArticleBoard from '@/components/PubmedArticleBoard';
 import { generateId, getProjects } from '@/services/storageService';
@@ -15,6 +16,7 @@ interface OpenAiChatKitPanelProps {
 }
 
 const OpenAiChatKitPanel: React.FC<OpenAiChatKitPanelProps> = ({ project, onUpdateProject }) => {
+  const { getToken } = useAuth();
   const projectRef = useRef(project);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -41,7 +43,8 @@ const OpenAiChatKitPanel: React.FC<OpenAiChatKitPanelProps> = ({ project, onUpda
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const projects = await getProjects();
+      const token = await getToken();
+      const projects = await getProjects({ token });
       const updated = projects.find((p) => p.id === projectRef.current.id);
       if (updated) {
         onUpdateProject(updated);
@@ -51,7 +54,7 @@ const OpenAiChatKitPanel: React.FC<OpenAiChatKitPanelProps> = ({ project, onUpda
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, onUpdateProject]);
+  }, [getToken, isRefreshing, onUpdateProject]);
 
   const { control } = useChatKit({
     api: {

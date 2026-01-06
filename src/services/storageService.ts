@@ -4,37 +4,72 @@ import type { Project, ProjectType, WritingBrief } from '@/types';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '/api';
 export { generateId };
 
+type StorageAuthOptions = {
+  token?: string | null;
+};
+
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(message || 'API request failed');
+    let normalized = message;
+    if (message) {
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed?.error) {
+          normalized = parsed.error;
+        }
+      } catch {
+        // Keep original message.
+      }
+    }
+    if (response.status === 401) {
+      normalized = 'Unauthorized';
+    }
+    throw new Error(normalized || 'API request failed');
   }
   return response.json();
 };
 
-export const getProjects = async (): Promise<Project[]> => {
-  const response = await fetch(`${API_BASE}/projects`);
+const buildAuthHeaders = (options?: StorageAuthOptions, initHeaders?: HeadersInit) => {
+  const headers = new Headers(initHeaders);
+  if (options?.token) {
+    headers.set('Authorization', `Bearer ${options.token}`);
+  }
+  return headers;
+};
+
+const fetchWithAuth = (input: RequestInfo | URL, init: RequestInit = {}, options?: StorageAuthOptions) => {
+  const headers = buildAuthHeaders(options, init.headers);
+  return fetch(input, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+};
+
+export const getProjects = async (options?: StorageAuthOptions): Promise<Project[]> => {
+  const response = await fetchWithAuth(`${API_BASE}/projects`, {}, options);
   const data = await handleResponse(response);
   return normalizeProjects(data);
 };
 
-export const saveProject = async (project: Project): Promise<Project> => {
-  const response = await fetch(`${API_BASE}/projects`, {
+export const saveProject = async (project: Project, options?: StorageAuthOptions): Promise<Project> => {
+  const response = await fetchWithAuth(`${API_BASE}/projects`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(project)
-  });
+  }, options);
 
   const saved = await handleResponse(response);
   return normalizeProject(saved);
 };
 
-export const deleteProject = async (id: string): Promise<void> => {
-  const response = await fetch(`${API_BASE}/projects/${id}`, {
+export const deleteProject = async (id: string, options?: StorageAuthOptions): Promise<void> => {
+  const response = await fetchWithAuth(`${API_BASE}/projects/${id}`, {
     method: 'DELETE'
-  });
+  }, options);
   if (!response.ok) {
     throw new Error('Failed to delete project');
   }

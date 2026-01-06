@@ -1,3 +1,7 @@
+## 2026-01-06 18:32 UTC
+- (Commit: codex/fix-clerk-session-sync) Added token-backed project API calls and clearer unauthorized messaging for manuscript and general writing dashboards.
+- (Commit: codex/fix-clerk-session-sync) Ensured Clerk layout rendering is dynamic so header auth controls reflect the active session.
+
 ## 2026-01-05 05:09 UTC
 - (Commit: codex/add-chatkit-agent-flow) Added a secured ChatKit document download endpoint for OpenAI agent-generated markdown exports.
 - (Commit: codex/add-chatkit-agent-flow) Documented the self-hosted OpenAI ChatKit setup and environment variables.
