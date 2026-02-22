@@ -1,0 +1,4 @@
+interface:
+  display_name: "PubMed Manuscript Scraper"
+  short_description: "Search PubMed and export abstract references"
+  default_prompt: "Use $pubmed-manuscript-scraper to find PubMed abstracts for my manuscript topic and save a reference document."

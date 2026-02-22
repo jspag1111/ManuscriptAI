@@ -1,3 +1,8 @@
+## 2026-02-22 05:16 UTC
+- (Commit: codex/add-pubmed-manuscript-scraper-skill) Added a new `pubmed-manuscript-scraper` skill with parameterized PubMed query guidance for year ranges, publication types, language, journal, and inclusion/exclusion filters.
+- (Commit: codex/add-pubmed-manuscript-scraper-skill) Added a Python PubMed scraper script that runs `esearch` + `efetch`, extracts manuscript metadata/abstract fields, and exports JSON + markdown + model-context reference documents.
+- (Commit: codex/add-pubmed-manuscript-scraper-skill) Added unit tests for query construction, XML parsing, and reference document generation, and validated the skill structure with the skill validator.
+
 ## 2026-01-06 18:32 UTC
 - (Commit: codex/fix-clerk-session-sync) Added token-backed project API calls and clearer unauthorized messaging for manuscript and general writing dashboards.
 - (Commit: codex/fix-clerk-session-sync) Ensured Clerk layout rendering is dynamic so header auth controls reflect the active session.
