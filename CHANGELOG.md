@@ -1,3 +1,8 @@
+## 2026-04-19 16:52 EDT
+- (Commit: codex/redesign-project-workspace-dashboard) Changed the manuscript and general writing dashboards to use a shared workspace shell with a clear tab-style switcher between Manuscripts and General Writing.
+- (Commit: codex/redesign-project-workspace-dashboard) Replaced project card grids with polished row-based project lists that surface project metadata and actions more cleanly.
+- (Commit: codex/redesign-project-workspace-dashboard) Refined the dashboard hero areas with stronger hierarchy, workspace stats, and more intentional empty/loading states.
+
 ## 2025-12-24 03:11 UTC
 - (Commit: codex/add-general-writing-studio) Added a general writing workspace at `/writing` with a brief-first panel, outline capture, and draft/brief/history navigation while reusing the ProseMirror editor, comments, tracked changes, and version history.
 - (Commit: codex/add-general-writing-studio) Added project-level writing brief fields that feed Gemini drafting and refinement prompts, plus updated navigation links, docs, and tests.

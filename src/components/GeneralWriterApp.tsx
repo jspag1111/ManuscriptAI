@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Clock, FileText, History, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, FileText, History, Plus, Save, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { HistoryViewer } from '@/components/HistoryViewer';
+import { ProjectDashboard } from '@/components/ProjectDashboard';
 import { SectionEditor } from '@/components/SectionEditor';
 import { WritingBriefEditor } from '@/components/WritingBriefEditor';
 import { createNewProject, deleteProject, generateId, getProjects, saveProject } from '@/services/storageService';
@@ -61,6 +62,17 @@ const GeneralWriterApp: React.FC = () => {
     () => (activeSection ? calculateTextStats(activeSection.content) : { words: 0, charsWithSpaces: 0, charsWithoutSpaces: 0 }),
     [activeSection]
   );
+  const dashboardStats = useMemo(() => {
+    const totalDrafts = projects.reduce((sum, project) => sum + project.sections.length, 0);
+    const latestUpdate = projects[0]?.lastModified;
+
+    return [
+      { label: 'Workspace', value: 'General Writing' },
+      { label: 'Projects', value: `${projects.length}` },
+      { label: 'Drafts', value: `${totalDrafts}` },
+      { label: 'Latest edit', value: latestUpdate ? new Date(latestUpdate).toLocaleDateString() : 'No projects yet' },
+    ];
+  }, [projects]);
 
   useEffect(() => {
     let isMounted = true;
@@ -111,7 +123,7 @@ const GeneralWriterApp: React.FC = () => {
     }
   };
 
-  const handleDeleteProject = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteProject = async (e: React.MouseEvent<HTMLButtonElement>, id: string) => {
     e.stopPropagation();
     if (confirm('Are you sure? This cannot be undone.')) {
       try {
@@ -169,92 +181,34 @@ const GeneralWriterApp: React.FC = () => {
     setActivePanel('DRAFT');
   };
 
+  const openProject = (project: Project) => {
+    setCurrentProject(project);
+    setActiveSectionId(project.sections[0]?.id || null);
+    setActivePanel('DRAFT');
+    setView(AppView.PROJECT);
+  };
+
   if (view === AppView.DASHBOARD) {
     return (
-      <div className="min-h-[calc(100vh-4rem)] relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-70"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 12% 20%, rgba(14,165,233,0.18), transparent 26%),' +
-              'radial-gradient(circle at 80% 10%, rgba(16,185,129,0.12), transparent 24%),' +
-              'radial-gradient(circle at 45% 80%, rgba(99,102,241,0.12), transparent 30%)',
-          }}
+      <>
+        <ProjectDashboard
+          workspace="writing"
+          badge="General Writing"
+          title="General writing studio"
+          description="Keep briefs, quick drafts, and everyday writing separate from manuscript work."
+          createLabel="New Writing Project"
+          projects={projects}
+          isLoading={isLoadingProjects}
+          projectError={projectError}
+          emptyTitle="No writing projects yet"
+          emptyDescription="Create one to start drafting without mixing it into your manuscript workspace."
+          stats={dashboardStats}
+          getProjectDescription={(project) => project.description || 'General writing project'}
+          getProjectMetricLabel={(project) => `${project.sections.length} ${project.sections.length === 1 ? 'draft' : 'drafts'}`}
+          onCreate={handleCreateProjectClick}
+          onOpen={openProject}
+          onDelete={handleDeleteProject}
         />
-
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-          <header className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div className="space-y-2">
-              <p className="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-white/70 border border-white/80 uppercase tracking-wider text-slate-700 shadow-sm">
-                General Writing
-              </p>
-              <div className="space-y-1">
-                <h1 className="text-3xl font-semibold text-slate-900">Your flexible writing studio</h1>
-                <p className="text-slate-600">Capture briefs, draft quickly, and refine any kind of document with the same editing tools.</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/"
-                className="px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 hover:text-blue-700 transition-colors"
-              >
-                Go to Manuscripts
-              </Link>
-              <Button onClick={handleCreateProjectClick} size="lg" className="shadow-lg shadow-blue-500/20 px-4">
-                <Plus className="mr-2" size={20} /> New Writing Project
-              </Button>
-            </div>
-          </header>
-
-          {projectError && (
-            <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 shadow-sm">
-              {projectError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoadingProjects && (
-              <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-2xl bg-white/60">
-                Loading projects from local database...
-              </div>
-            )}
-
-            {!isLoadingProjects && projects.map(project => (
-              <div
-                key={project.id}
-                onClick={() => {
-                  setCurrentProject(project);
-                  setActiveSectionId(project.sections[0]?.id || null);
-                  setActivePanel('DRAFT');
-                  setView(AppView.PROJECT);
-                }}
-                className="bg-white/80 p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer backdrop-blur group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-sky-500/15 to-emerald-500/10 text-sky-700 border border-sky-100">
-                    <Sparkles size={22} />
-                  </div>
-                  <button onClick={(e) => handleDeleteProject(e, project.id)} className="text-slate-300 hover:text-red-500">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-                <h3 className="font-semibold text-lg text-slate-900 mb-1 truncate">{project.title}</h3>
-                <p className="text-sm text-slate-500 mb-4 line-clamp-2">{project.description || 'Untitled writing brief'}</p>
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="flex items-center gap-1"><Clock size={14} /> Edited {new Date(project.lastModified).toLocaleDateString()}</span>
-                  <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-[11px]">{project.sections.length} draft</span>
-                </div>
-              </div>
-            ))}
-
-            {!isLoadingProjects && projects.length === 0 && (
-              <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-2xl bg-white/60">
-                <p className="text-lg font-semibold text-slate-700 mb-2">No writing projects yet</p>
-                <p className="text-sm text-slate-500">Create one to start drafting.</p>
-              </div>
-            )}
-          </div>
-        </div>
 
         {isCreatingProject && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -288,7 +242,7 @@ const GeneralWriterApp: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+      </>
     );
   }
 
