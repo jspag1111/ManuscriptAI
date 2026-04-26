@@ -43,4 +43,22 @@ describe('normalizeProject', () => {
     expect(normalized.figures[0].label).toBe('Table 1');
     expect(normalized.figures[0].includeInWordCount).toBe(false);
   });
+
+  it('migrates legacy writing brief fields into custom blocks for general writing projects', () => {
+    const normalized = normalizeProject({
+      ...baseProject,
+      projectType: 'GENERAL',
+      writingBrief: {
+        goals: 'Clarify the main message.',
+        tone: 'Conversational and direct.',
+      } as any,
+    });
+
+    expect(normalized.writingBrief.blocks.map((block) => block.title)).toEqual(['Goals', 'Tone & Voice']);
+    expect(normalized.sections[0].draftingContext).toMatchObject({
+      includeCurrentContent: true,
+      sectionIds: [],
+    });
+    expect(normalized.sections[0].draftingContext?.briefBlockIds).toHaveLength(2);
+  });
 });

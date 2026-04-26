@@ -114,6 +114,7 @@ export interface Section {
   lastLlmContent?: string | null;
   changeEvents?: SectionChangeEvent[];
   commentThreads?: SectionCommentThread[];
+  draftingContext?: GeneralWritingContext;
 }
 
 export interface ProjectSettings {
@@ -125,12 +126,20 @@ export interface ProjectSettings {
 
 export type ProjectType = 'MANUSCRIPT' | 'GENERAL';
 
+export interface WritingBriefBlock {
+  id: string;
+  title: string;
+  content: string;
+}
+
 export interface WritingBrief {
-  goals: string;
-  audience: string;
-  format: string;
-  outline: string;
-  tone: string;
+  blocks: WritingBriefBlock[];
+}
+
+export interface GeneralWritingContext {
+  briefBlockIds: string[];
+  sectionIds: string[];
+  includeCurrentContent: boolean;
 }
 
 export interface Affiliation {

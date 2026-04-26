@@ -43,6 +43,10 @@ describe('storageService', () => {
       description: 'Check',
       created: 1,
       lastModified: 1,
+      projectType: 'GENERAL',
+      writingBrief: {
+        goals: 'Legacy block migration',
+      } as any,
       sections: [
         { id: 'section-1', title: 'Intro', content: 'Body', userNotes: 'Notes', versions: [], lastModified: 1 }
       ],
@@ -67,6 +71,8 @@ describe('storageService', () => {
     expect(fetch).toHaveBeenCalledWith('/api/projects');
     expect(projects[0].manuscriptMetadata).toEqual({ authors: [], affiliations: [] });
     expect(projects[0].sections[0].useReferences).toBe(true);
+    expect(projects[0].writingBrief.blocks).toHaveLength(1);
+    expect(projects[0].sections[0].draftingContext?.briefBlockIds).toHaveLength(1);
     expect(projects[0].figures[0]).toMatchObject({
       label: 'Figure 1',
       includeInWordCount: false,

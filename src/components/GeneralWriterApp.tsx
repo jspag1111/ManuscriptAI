@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, FileText, History, Plus, Save, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, Edit2, FileText, History, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { HistoryViewer } from '@/components/HistoryViewer';
 import { ProjectDashboard } from '@/components/ProjectDashboard';
@@ -17,9 +17,9 @@ const GENERAL_PROJECT_TYPE = 'GENERAL';
 
 type WriterPanel = 'DRAFT' | 'BRIEF' | 'HISTORY';
 
-const createDraftSection = (): Section => ({
+const createDraftSection = (title = 'Section 1'): Section => ({
   id: generateId(),
-  title: 'Draft',
+  title,
   content: '',
   userNotes: '',
   versions: [],
@@ -32,6 +32,11 @@ const createDraftSection = (): Section => ({
   lastLlmContent: null,
   changeEvents: [],
   commentThreads: [],
+  draftingContext: {
+    briefBlockIds: [],
+    sectionIds: [],
+    includeCurrentContent: true,
+  },
 });
 
 const GeneralWriterApp: React.FC = () => {
@@ -44,6 +49,10 @@ const GeneralWriterApp: React.FC = () => {
 
   const [activePanel, setActivePanel] = useState<WriterPanel>('DRAFT');
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
 
@@ -61,6 +70,20 @@ const GeneralWriterApp: React.FC = () => {
   const draftStats = useMemo(
     () => (activeSection ? calculateTextStats(activeSection.content) : { words: 0, charsWithSpaces: 0, charsWithoutSpaces: 0 }),
     [activeSection]
+  );
+  const projectTotals = useMemo(
+    () =>
+      currentProject?.sections.reduce(
+        (acc, section) => {
+          const stats = calculateTextStats(section.content);
+          acc.words += stats.words;
+          acc.charsWithSpaces += stats.charsWithSpaces;
+          acc.charsWithoutSpaces += stats.charsWithoutSpaces;
+          return acc;
+        },
+        { words: 0, charsWithSpaces: 0, charsWithoutSpaces: 0 }
+      ) ?? { words: 0, charsWithSpaces: 0, charsWithoutSpaces: 0 },
+    [currentProject]
   );
   const dashboardStats = useMemo(() => {
     const totalDrafts = projects.reduce((sum, project) => sum + project.sections.length, 0);
@@ -106,7 +129,7 @@ const GeneralWriterApp: React.FC = () => {
     const newProject = createNewProject(newProjectTitle, 'General writing project', {
       projectType: GENERAL_PROJECT_TYPE,
     });
-    newProject.sections = [createDraftSection()];
+    newProject.sections = [createDraftSection('Section 1')];
 
     try {
       const saved = await saveProject(newProject);
@@ -171,7 +194,7 @@ const GeneralWriterApp: React.FC = () => {
 
   const handleCreateDraftSection = () => {
     if (!currentProject) return;
-    const nextSection = createDraftSection();
+    const nextSection = createDraftSection(newSectionName.trim() || `Section ${currentProject.sections.length + 1}`);
     const nextProject = {
       ...currentProject,
       sections: [nextSection, ...currentProject.sections],
@@ -179,6 +202,56 @@ const GeneralWriterApp: React.FC = () => {
     handleUpdateProject(nextProject);
     setActiveSectionId(nextSection.id);
     setActivePanel('DRAFT');
+    setIsAddingSection(false);
+    setNewSectionName('');
+  };
+
+  const handleStartEditSection = (event: React.MouseEvent, section: Section) => {
+    event.stopPropagation();
+    setEditingSectionId(section.id);
+    setEditingTitle(section.title);
+  };
+
+  const handleSaveEditSection = (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (!editingSectionId || !editingTitle.trim() || !currentProject) return;
+
+    handleUpdateProject({
+      ...currentProject,
+      sections: currentProject.sections.map((section) =>
+        section.id === editingSectionId ? { ...section, title: editingTitle.trim() } : section
+      ),
+    });
+    setEditingSectionId(null);
+    setEditingTitle('');
+  };
+
+  const handleDeleteSection = (event: React.MouseEvent, sectionId: string) => {
+    event.stopPropagation();
+    if (!currentProject) return;
+    if (!confirm('Delete this section? content will be lost.')) return;
+
+    const nextSections = currentProject.sections
+      .filter((section) => section.id !== sectionId)
+      .map((section) => ({
+        ...section,
+        draftingContext: section.draftingContext
+          ? {
+              ...section.draftingContext,
+              sectionIds: section.draftingContext.sectionIds.filter((id) => id !== sectionId),
+            }
+          : section.draftingContext,
+      }));
+
+    handleUpdateProject({
+      ...currentProject,
+      sections: nextSections,
+    });
+
+    if (activeSectionId === sectionId) {
+      setActiveSectionId(nextSections[0]?.id || null);
+      setActivePanel(nextSections.length > 0 ? 'DRAFT' : 'BRIEF');
+    }
   };
 
   const openProject = (project: Project) => {
@@ -289,7 +362,7 @@ const GeneralWriterApp: React.FC = () => {
                       : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
                     }`}
                 >
-                  <FileText size={16} className="mr-2" /> Draft
+                  <FileText size={16} className="mr-2" /> Section Editor
                 </button>
                 <button
                   onClick={() => setActivePanel('BRIEF')}
@@ -301,8 +374,9 @@ const GeneralWriterApp: React.FC = () => {
                   <Sparkles size={16} className="mr-2" /> Writing Brief
                 </button>
                 <button
+                  disabled={!activeSection}
                   onClick={() => setActivePanel('HISTORY')}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm ${activePanel === 'HISTORY'
+                  className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${activePanel === 'HISTORY'
                       ? 'bg-blue-600 text-white shadow-blue-200'
                       : 'text-slate-700 bg-slate-50 hover:bg-slate-100'
                     }`}
@@ -311,10 +385,121 @@ const GeneralWriterApp: React.FC = () => {
                 </button>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Text Sections</h2>
+                  <span className="text-[10px] text-slate-500">{currentProject.sections.length}</span>
+                </div>
+                <nav className="space-y-1">
+                  {currentProject.sections.map((section) => (
+                    <div key={section.id} className="group flex items-center gap-1 relative">
+                      {editingSectionId === section.id ? (
+                        <form
+                          className="flex items-center flex-1 gap-1 px-2 py-1 bg-white border border-blue-300 rounded-md shadow-sm"
+                          onSubmit={handleSaveEditSection}
+                        >
+                          <input
+                            autoFocus
+                            className="flex-1 min-w-0 text-sm outline-none bg-transparent"
+                            value={editingTitle}
+                            onChange={(event) => setEditingTitle(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Escape') {
+                                setEditingSectionId(null);
+                                setEditingTitle('');
+                              }
+                            }}
+                          />
+                          <button type="submit" className="text-green-600 hover:bg-green-50 p-1 rounded">
+                            <Check size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSectionId(null);
+                              setEditingTitle('');
+                            }}
+                            className="text-red-600 hover:bg-red-50 p-1 rounded"
+                          >
+                            <X size={14} />
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setActiveSectionId(section.id);
+                              setActivePanel('DRAFT');
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors truncate ${
+                              activeSectionId === section.id && activePanel !== 'BRIEF'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
+                            title={section.title}
+                          >
+                            {section.title}
+                          </button>
+                          <div className={`absolute right-1 flex items-center bg-white/90 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity ${activeSectionId === section.id ? 'opacity-100' : ''}`}>
+                            <button onClick={(event) => handleStartEditSection(event, section)} className="p-1.5 text-slate-400 hover:text-blue-600 rounded" title="Rename">
+                              <Edit2 size={12} />
+                            </button>
+                            <button onClick={(event) => handleDeleteSection(event, section.id)} className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="Delete">
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+
+                  {isAddingSection ? (
+                    <div className="flex items-center gap-1 px-2 py-1 mt-2 bg-white border border-blue-300 rounded-md shadow-sm">
+                      <input
+                        autoFocus
+                        placeholder={`Section ${currentProject.sections.length + 1}`}
+                        className="flex-1 min-w-0 text-sm outline-none bg-transparent"
+                        value={newSectionName}
+                        onChange={(event) => setNewSectionName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') handleCreateDraftSection();
+                          if (event.key === 'Escape') {
+                            setIsAddingSection(false);
+                            setNewSectionName('');
+                          }
+                        }}
+                      />
+                      <button onClick={handleCreateDraftSection} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                        <Check size={14} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAddingSection(false);
+                          setNewSectionName('');
+                        }}
+                        className="text-red-600 hover:bg-red-50 p-1 rounded"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsAddingSection(true);
+                        setNewSectionName('');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:text-slate-700 flex items-center hover:bg-slate-50 rounded-md transition-colors mt-1"
+                    >
+                      <Plus size={14} className="mr-2" /> Add Section
+                    </button>
+                  )}
+                </nav>
+              </div>
+
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Draft Stats</h3>
-                  <span className="text-[10px] text-slate-500">{activeSection ? 'Active' : 'None yet'}</span>
+                  <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Current Section</h3>
+                  <span className="text-[10px] text-slate-500">{activeSection ? activeSection.title : 'None yet'}</span>
                 </div>
                 <dl className="space-y-1 text-xs">
                   <div className="flex items-center justify-between">
@@ -328,6 +513,27 @@ const GeneralWriterApp: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <dt className="text-slate-600">Chars (no spaces)</dt>
                     <dd className="font-semibold text-slate-900">{draftStats.charsWithoutSpaces.toLocaleString()}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-700 tracking-wider uppercase">Project Totals</h3>
+                  <span className="text-[10px] text-slate-500">{currentProject.sections.length} sections</span>
+                </div>
+                <dl className="space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-600">Words</dt>
+                    <dd className="font-semibold text-slate-900">{projectTotals.words.toLocaleString()}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-600">Chars (with spaces)</dt>
+                    <dd className="font-semibold text-slate-900">{projectTotals.charsWithSpaces.toLocaleString()}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-slate-600">Chars (no spaces)</dt>
+                    <dd className="font-semibold text-slate-900">{projectTotals.charsWithoutSpaces.toLocaleString()}</dd>
                   </div>
                 </dl>
               </div>
@@ -356,9 +562,16 @@ const GeneralWriterApp: React.FC = () => {
             {activePanel === 'DRAFT' && !activeSection && (
               <div className="h-full flex items-center justify-center bg-white border border-dashed border-slate-200 rounded-2xl">
                 <div className="text-center space-y-3 p-6">
-                  <h3 className="text-lg font-semibold text-slate-800">Create your first draft</h3>
-                  <p className="text-sm text-slate-500">Start with a blank document and draft with the full editor.</p>
-                  <Button onClick={handleCreateDraftSection}>Create Draft</Button>
+                  <h3 className="text-lg font-semibold text-slate-800">Create your first section</h3>
+                  <p className="text-sm text-slate-500">Start building this writing project one section at a time.</p>
+                  <Button
+                    onClick={() => {
+                      setIsAddingSection(true);
+                      setNewSectionName('');
+                    }}
+                  >
+                    Add Section
+                  </Button>
                 </div>
               </div>
             )}
@@ -395,6 +608,15 @@ const GeneralWriterApp: React.FC = () => {
                   setActivePanel('DRAFT');
                 }}
               />
+            )}
+
+            {activePanel === 'HISTORY' && !activeSection && (
+              <div className="h-full flex items-center justify-center bg-white border border-dashed border-slate-200 rounded-2xl">
+                <div className="text-center space-y-2 p-6">
+                  <h3 className="text-lg font-semibold text-slate-800">No section selected</h3>
+                  <p className="text-sm text-slate-500">Pick a section from the sidebar to review its version history.</p>
+                </div>
+              </div>
             )}
           </div>
         </div>

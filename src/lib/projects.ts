@@ -1,4 +1,4 @@
-import type { GeneratedFigure, Project, ProjectSettings, ProjectType, Section, WritingBrief } from '@/types';
+import type { GeneratedFigure, GeneralWritingContext, Project, ProjectSettings, ProjectType, Section, WritingBrief, WritingBriefBlock } from '@/types';
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
   targetJournal: '',
@@ -8,12 +8,16 @@ export const DEFAULT_SETTINGS: ProjectSettings = {
 };
 
 export const DEFAULT_WRITING_BRIEF: WritingBrief = {
-  goals: '',
-  audience: '',
-  format: '',
-  outline: '',
-  tone: '',
+  blocks: [],
 };
+
+const LEGACY_WRITING_BRIEF_FIELDS = [
+  { key: 'goals', title: 'Goals' },
+  { key: 'audience', title: 'Audience' },
+  { key: 'format', title: 'Format & Style' },
+  { key: 'tone', title: 'Tone & Voice' },
+  { key: 'outline', title: 'Outline' },
+] as const;
 
 export const generateId = (): string => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -125,7 +129,36 @@ const normalizeCommentThreads = (rawThreads: any, fallbackTime: number) => {
     });
 };
 
-const normalizeSection = (section: Partial<Section>, fallbackTime: number): Section => {
+const normalizeWritingBriefBlock = (block: Partial<WritingBriefBlock>, index: number): WritingBriefBlock => ({
+  id: typeof block.id === 'string' && block.id.trim().length > 0 ? block.id : generateId(),
+  title: typeof block.title === 'string' && block.title.trim().length > 0 ? block.title.trim() : `Brief Block ${index + 1}`,
+  content: typeof block.content === 'string' ? block.content : '',
+});
+
+const normalizeGeneralWritingContext = (
+  rawContext: Partial<GeneralWritingContext> | null | undefined,
+  defaultBriefBlockIds: string[]
+): GeneralWritingContext => {
+  const briefBlockIds = Array.isArray(rawContext?.briefBlockIds)
+    ? rawContext.briefBlockIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : defaultBriefBlockIds;
+
+  const sectionIds = Array.isArray(rawContext?.sectionIds)
+    ? rawContext.sectionIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+
+  return {
+    briefBlockIds: Array.from(new Set(briefBlockIds)),
+    sectionIds: Array.from(new Set(sectionIds)),
+    includeCurrentContent: rawContext?.includeCurrentContent !== false,
+  };
+};
+
+const normalizeSection = (
+  section: Partial<Section>,
+  fallbackTime: number,
+  options?: { defaultBriefBlockIds?: string[]; includeDraftingContext?: boolean }
+): Section => {
   const legacyLastModified = (section as any).last_modified as number | undefined;
   const sectionModified = section.lastModified || legacyLastModified || fallbackTime;
   const withDefaults: Section = {
@@ -159,18 +192,37 @@ const normalizeSection = (section: Partial<Section>, fallbackTime: number): Sect
     lastLlmContent: section.lastLlmContent ?? null,
     changeEvents: Array.isArray((section as any).changeEvents) ? ((section as any).changeEvents as any) : [],
     commentThreads: normalizeCommentThreads((section as any).commentThreads, sectionModified),
+    draftingContext: options?.includeDraftingContext
+      ? normalizeGeneralWritingContext(section.draftingContext, options.defaultBriefBlockIds ?? [])
+      : undefined,
   };
 
   return withDefaults;
 };
 
-const normalizeWritingBrief = (brief?: Partial<WritingBrief> | null): WritingBrief => ({
-  goals: typeof brief?.goals === 'string' ? brief.goals : '',
-  audience: typeof brief?.audience === 'string' ? brief.audience : '',
-  format: typeof brief?.format === 'string' ? brief.format : '',
-  outline: typeof brief?.outline === 'string' ? brief.outline : '',
-  tone: typeof brief?.tone === 'string' ? brief.tone : '',
-});
+const normalizeWritingBrief = (brief?: Partial<WritingBrief> | null): WritingBrief => {
+  const customBlocks = Array.isArray(brief?.blocks)
+    ? brief.blocks.map((block, index) => normalizeWritingBriefBlock(block, index))
+    : [];
+
+  if (customBlocks.length > 0) {
+    return { blocks: customBlocks };
+  }
+
+  const legacyBlocks = LEGACY_WRITING_BRIEF_FIELDS
+    .map(({ key, title }, index) => {
+      const value = typeof (brief as Record<string, unknown> | null | undefined)?.[key] === 'string'
+        ? (((brief as Record<string, unknown>)[key] as string) ?? '').trim()
+        : '';
+
+      if (!value) return null;
+
+      return normalizeWritingBriefBlock({ title, content: value }, index);
+    })
+    .filter((block): block is WritingBriefBlock => block !== null);
+
+  return { blocks: legacyBlocks };
+};
 
 const normalizeProjectType = (value: unknown): ProjectType =>
   value === 'GENERAL' ? 'GENERAL' : 'MANUSCRIPT';
@@ -178,8 +230,15 @@ const normalizeProjectType = (value: unknown): ProjectType =>
 export const normalizeProject = (project: Partial<Project>): Project => {
   const legacyLastModified = (project as any).last_modified as number | undefined;
   const fallbackTime = project.lastModified || legacyLastModified || project.created || Date.now();
+  const normalizedProjectType = normalizeProjectType(project.projectType);
+  const normalizedWritingBrief = normalizeWritingBrief(project.writingBrief ?? null);
   const normalizedSections = Array.isArray(project.sections)
-    ? project.sections.map((section) => normalizeSection(section, fallbackTime))
+    ? project.sections.map((section) =>
+        normalizeSection(section, fallbackTime, {
+          includeDraftingContext: normalizedProjectType === 'GENERAL',
+          defaultBriefBlockIds: normalizedWritingBrief.blocks.map((block) => block.id),
+        })
+      )
     : [];
 
   const normalized: Project = {
@@ -189,8 +248,8 @@ export const normalizeProject = (project: Partial<Project>): Project => {
     description: project.description || '',
     created: project.created || fallbackTime,
     lastModified: project.lastModified || legacyLastModified || fallbackTime,
-    projectType: normalizeProjectType(project.projectType),
-    writingBrief: normalizeWritingBrief(project.writingBrief ?? null),
+    projectType: normalizedProjectType,
+    writingBrief: normalizedWritingBrief,
     settings: project.settings || { ...DEFAULT_SETTINGS },
     manuscriptMetadata: project.manuscriptMetadata || { authors: [], affiliations: [] },
     sections: normalizedSections,

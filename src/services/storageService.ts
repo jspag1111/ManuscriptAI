@@ -52,7 +52,7 @@ export const createNewProject = (
     created: Date.now(),
     lastModified: Date.now(),
     projectType: options?.projectType ?? 'MANUSCRIPT',
-    writingBrief: options?.writingBrief ?? { ...DEFAULT_WRITING_BRIEF },
+    writingBrief: options?.writingBrief ?? { blocks: [...DEFAULT_WRITING_BRIEF.blocks] },
     settings: { ...DEFAULT_SETTINGS },
     manuscriptMetadata: {
         authors: [],

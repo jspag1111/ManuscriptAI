@@ -80,6 +80,36 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
   const bibliographyOrder = useMemo(() => getBibliographyOrder(project.sections), [project.sections]);
   const contentStats = useMemo(() => calculateTextStats(content), [content]);
   const workingBase = section.currentVersionBase !== undefined ? section.currentVersionBase : section.content;
+  const briefBlocks = useMemo(
+    () => (project.projectType === 'GENERAL' ? project.writingBrief?.blocks ?? [] : []),
+    [project.projectType, project.writingBrief]
+  );
+  const relatedWritingSections = useMemo(
+    () => (project.projectType === 'GENERAL' ? project.sections.filter((candidate) => candidate.id !== section.id) : []),
+    [project.projectType, project.sections, section.id]
+  );
+  const draftingContext = useMemo(
+    () => ({
+      briefBlockIds: section.draftingContext?.briefBlockIds ?? [],
+      sectionIds: section.draftingContext?.sectionIds ?? [],
+      includeCurrentContent: section.draftingContext?.includeCurrentContent !== false,
+    }),
+    [section.draftingContext]
+  );
+  const selectedBriefBlockTitles = useMemo(
+    () =>
+      briefBlocks
+        .filter((block) => draftingContext.briefBlockIds.includes(block.id))
+        .map((block) => block.title),
+    [briefBlocks, draftingContext.briefBlockIds]
+  );
+  const selectedRelatedSectionTitles = useMemo(
+    () =>
+      relatedWritingSections
+        .filter((candidate) => draftingContext.sectionIds.includes(candidate.id))
+        .map((candidate) => candidate.title),
+    [draftingContext.sectionIds, relatedWritingSections]
+  );
 
   const currentCommentAuthor = useMemo<SectionCommentAuthor>(
     () => ({
@@ -153,6 +183,18 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
     editorRef.current?.clearLock();
   }, [showHighlights]);
 
+  const updateDraftingContext = useCallback((updates: Partial<NonNullable<Section['draftingContext']>>) => {
+    onUpdateSection({
+      ...section,
+      draftingContext: {
+        briefBlockIds: section.draftingContext?.briefBlockIds ?? [],
+        sectionIds: section.draftingContext?.sectionIds ?? [],
+        includeCurrentContent: section.draftingContext?.includeCurrentContent !== false,
+        ...updates,
+      },
+    });
+  }, [onUpdateSection, section]);
+
   useEffect(() => {
     if (showHighlights) return;
     setFocusedChangeEventId(null);
@@ -216,7 +258,21 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         baseContent: content,
         nextContent: text,
         actor,
-        request: `Gemini Drafter\nInstruction: ${draftInstruction}\n\nNotes:\n${notes ?? ''}`.trim(),
+        request: [
+          'Gemini Drafter',
+          `Instruction: ${draftInstruction}`,
+          `Notes:\n${notes ?? ''}`.trim(),
+          project.projectType === 'GENERAL'
+            ? [
+                `Selected Brief Blocks: ${selectedBriefBlockTitles.length > 0 ? selectedBriefBlockTitles.join(', ') : 'None'}`,
+                `Selected Related Sections: ${selectedRelatedSectionTitles.length > 0 ? selectedRelatedSectionTitles.join(', ') : 'None'}`,
+                `Include Current Content: ${draftingContext.includeCurrentContent ? 'Yes' : 'No'}`,
+              ].join('\n')
+            : null,
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+          .trim(),
       });
       setAiReview({ kind: 'Draft', baseContent: content, actor, event, previewContent });
     } catch (e) {
@@ -770,6 +826,101 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                         <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${section.useReferences !== false ? 'translate-x-5' : 'translate-x-0.5'}`} />
                       </button>
                     </div>
+
+                    {project.projectType === 'GENERAL' && (
+                      <div className="rounded-xl border border-blue-100 bg-white p-3 space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Prompt Context</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Choose which brief blocks and sibling sections Gemini should use for this section.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-slate-700">Writing Brief Blocks</p>
+                            <span className="text-[11px] text-slate-400">{selectedBriefBlockTitles.length} selected</span>
+                          </div>
+                          {briefBlocks.length > 0 ? (
+                            <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                              {briefBlocks.map((block) => {
+                                const checked = draftingContext.briefBlockIds.includes(block.id);
+                                return (
+                                  <label key={block.id} className="flex items-start gap-2 text-xs text-slate-600">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        updateDraftingContext({
+                                          briefBlockIds: checked
+                                            ? draftingContext.briefBlockIds.filter((id) => id !== block.id)
+                                            : [...draftingContext.briefBlockIds, block.id],
+                                        })
+                                      }
+                                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="leading-5">
+                                      <span className="font-medium text-slate-700">{block.title}</span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400">No brief blocks yet. Add them from the Writing Brief panel.</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-slate-700">Other Text Sections</p>
+                            <span className="text-[11px] text-slate-400">{selectedRelatedSectionTitles.length} selected</span>
+                          </div>
+                          {relatedWritingSections.length > 0 ? (
+                            <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                              {relatedWritingSections.map((relatedSection) => {
+                                const checked = draftingContext.sectionIds.includes(relatedSection.id);
+                                return (
+                                  <label key={relatedSection.id} className="flex items-start gap-2 text-xs text-slate-600">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        updateDraftingContext({
+                                          sectionIds: checked
+                                            ? draftingContext.sectionIds.filter((id) => id !== relatedSection.id)
+                                            : [...draftingContext.sectionIds, relatedSection.id],
+                                        })
+                                      }
+                                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="leading-5">
+                                      <span className="font-medium text-slate-700">{relatedSection.title}</span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400">No other sections yet. Add more sections in the project sidebar.</p>
+                          )}
+                        </div>
+
+                        <label className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                          <span className="font-medium">Use current section content as revision context</span>
+                          <input
+                            type="checkbox"
+                            checked={draftingContext.includeCurrentContent}
+                            onChange={() =>
+                              updateDraftingContext({
+                                includeCurrentContent: !draftingContext.includeCurrentContent,
+                              })
+                            }
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </label>
+                      </div>
+                    )}
 
                     <Button onClick={handleDraft} isLoading={isDrafting} disabled={isReviewing} className="w-full shadow">
                       {content.length > 0 ? 'Regenerate / Iterate Draft' : 'Generate First Draft'}

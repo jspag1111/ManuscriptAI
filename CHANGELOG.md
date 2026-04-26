@@ -1,3 +1,9 @@
+## 2026-04-19 17:33 EDT
+- (Commit: codex/custom-general-writing-brief-workflow) Changed general writing briefs from a fixed template into fully user-defined brief blocks with add, delete, edit, and reorder controls.
+- (Commit: codex/custom-general-writing-brief-workflow) Added multi-section general writing projects, including sidebar section management and project-level text totals.
+- (Commit: codex/custom-general-writing-brief-workflow) Added selectable AI drafting context for general writing sections so Gemini can use chosen brief blocks, chosen sibling sections, and optional current-section content.
+- (Commit: codex/custom-general-writing-brief-workflow) Fixed Vitest config to ignore generated `.next` artifacts so test runs stay clean after builds.
+
 ## 2026-04-19 16:52 EDT
 - (Commit: codex/redesign-project-workspace-dashboard) Changed the manuscript and general writing dashboards to use a shared workspace shell with a clear tab-style switcher between Manuscripts and General Writing.
 - (Commit: codex/redesign-project-workspace-dashboard) Replaced project card grids with polished row-based project lists that surface project metadata and actions more cleanly.

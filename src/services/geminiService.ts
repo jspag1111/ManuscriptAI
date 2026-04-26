@@ -50,25 +50,41 @@ const generateContentWithFallback = async (
   throw lastError;
 };
 
-const buildWritingBriefContext = (project?: Project): string => {
+const buildWritingBriefContext = (project?: Project, section?: Section): string => {
   const brief = project?.writingBrief;
   if (!brief) return '';
 
-  const entries = [
-    { label: 'Goals', value: brief.goals },
-    { label: 'Audience', value: brief.audience },
-    { label: 'Format/Style', value: brief.format },
-    { label: 'Tone/Voice', value: brief.tone },
-    { label: 'Outline', value: brief.outline },
-  ]
-    .map(({ label, value }) => ({
-      label,
-      value: typeof value === 'string' ? value.trim() : '',
+  const selectedIds = section?.draftingContext?.briefBlockIds ?? [];
+  const includeAllBlocks = project?.projectType !== 'GENERAL' || !section;
+  const sourceBlocks = includeAllBlocks
+    ? brief.blocks
+    : brief.blocks.filter((block) => selectedIds.includes(block.id));
+
+  const entries = sourceBlocks
+    .map((block) => ({
+      title: typeof block.title === 'string' ? block.title.trim() : '',
+      content: typeof block.content === 'string' ? block.content.trim() : '',
     }))
-    .filter(({ value }) => value.length > 0)
-    .map(({ label, value }) => `${label}:\n${value}`);
+    .filter(({ content }) => content.length > 0)
+    .map(({ title, content }) => `${title || 'Brief Block'}:\n${content}`);
 
   return entries.length > 0 ? entries.join('\n\n') : '';
+};
+
+const buildSelectedSectionContext = (project: Project, section: Section): string => {
+  if (project.projectType !== 'GENERAL') return '';
+  const selectedIds = section.draftingContext?.sectionIds ?? [];
+  if (selectedIds.length === 0) return '';
+
+  const entries = project.sections
+    .filter((candidate) => candidate.id !== section.id && selectedIds.includes(candidate.id))
+    .map((candidate) => {
+      const noteBlock = candidate.userNotes.trim() ? `Notes:\n${candidate.userNotes.trim()}\n\n` : '';
+      const contentBlock = candidate.content.trim() ? `Content:\n${candidate.content.trim()}` : 'Content:\n[Empty section]';
+      return `${candidate.title}:\n${noteBlock}${contentBlock}`;
+    });
+
+  return entries.join('\n\n');
 };
 
 export const generateSectionDraft = async (
@@ -81,8 +97,13 @@ export const generateSectionDraft = async (
   
   const useReferences = section.useReferences !== false; // Default to true if undefined
   const hasReferences = project.references.length > 0 && useReferences;
-  const writingBrief = buildWritingBriefContext(project);
-  const writingBriefBlock = writingBrief ? `Project Writing Brief:\n${writingBrief}` : '';
+  const writingBrief = buildWritingBriefContext(project, section);
+  const writingBriefBlock = writingBrief ? `Selected Writing Brief Blocks:\n${writingBrief}` : '';
+  const relatedSectionContext = buildSelectedSectionContext(project, section);
+  const relatedSectionBlock = relatedSectionContext ? `Selected Related Sections:\n${relatedSectionContext}` : '';
+  const includeCurrentContent = project.projectType === 'GENERAL'
+    ? section.draftingContext?.includeCurrentContent !== false
+    : true;
 
   // Construct context from project settings and references
   const referenceList = hasReferences
@@ -122,6 +143,7 @@ Do NOT use formatted citations like "(Smith, 2023)" or "[1]" in the output text.
 
   const prompt = `
     ${writingBriefBlock}
+    ${relatedSectionBlock}
 
     Current Section Notes/Goal:
     ${section.userNotes}
@@ -132,8 +154,10 @@ Do NOT use formatted citations like "(Smith, 2023)" or "[1]" in the output text.
     Available References:
     ${referenceList}
 
-    Current Content (if any):
-    ${section.content}
+    ${includeCurrentContent
+      ? `Current Content (if any):
+    ${section.content}`
+      : 'Current Content has been intentionally omitted from this request.'}
 
     Please generate the content for this section. Output ONLY the content in Markdown format. Do not include conversational filler.
   `;
