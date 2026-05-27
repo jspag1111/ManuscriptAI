@@ -1,4 +1,4 @@
-export type LlmProviderName = 'gemini';
+export type LlmProviderName = 'gemini' | 'langchain';
 
 export interface LlmTextRequest {
   prompt: string;
@@ -28,4 +28,3 @@ export interface LlmClient {
   generateText(request: LlmTextRequest): Promise<LlmTextResponse>;
   generateJson<T>(request: LlmJsonRequest): Promise<LlmJsonResponse<T>>;
 }
-

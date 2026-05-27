@@ -1,3 +1,10 @@
+## 2026-05-26 19:44 EDT
+- (Commit: codex/use-langchain-lmstudio) Added a LangChain `ChatOpenAI` LLM provider configured for LM Studio's local OpenAI-compatible server with `openai/gpt-oss-20b` defaults.
+- (Commit: codex/use-langchain-lmstudio) Changed text drafting, selection refinement, reference summaries, and PubMed query generation to use the shared LLM abstraction instead of constructing Gemini clients directly.
+- (Commit: codex/use-langchain-lmstudio) Added unit coverage for LangChain provider selection, LM Studio request mapping, JSON repair, and text-helper routing.
+- (Commit: codex/use-langchain-lmstudio) Added a live LM Studio verification script for the app's LangChain-backed text features.
+- (Commit: codex/use-langchain-lmstudio) Documented the local LM Studio setup and clarified that Gemini remains required for image generation.
+
 ## 2026-04-19 17:33 EDT
 - (Commit: codex/custom-general-writing-brief-workflow) Changed general writing briefs from a fixed template into fully user-defined brief blocks with add, delete, edit, and reorder controls.
 - (Commit: codex/custom-general-writing-brief-workflow) Added multi-section general writing projects, including sidebar section management and project-level text totals.
