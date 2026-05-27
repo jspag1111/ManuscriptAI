@@ -1,53 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
-import { MODEL_IMAGE, MODEL_TEXT_FAST, MODEL_TEXT_QUALITY } from '@/constants';
+import { MODEL_IMAGE } from '@/constants';
+import { getLlmClient } from '@/lib/llm';
 import { Project, Reference, Section } from '@/types';
 
-const getAI = () => {
+const getImageAI = () => {
   const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('Gemini API key is not configured. Set NEXT_PUBLIC_GEMINI_API_KEY.');
   }
   return new GoogleGenAI({ apiKey });
-};
-
-type GenerateContentParams = Parameters<GoogleGenAI['models']['generateContent']>[0];
-type BaseGenerateContentParams = Omit<GenerateContentParams, 'model'>;
-
-const QUALITY_MODEL_SEQUENCE = [MODEL_TEXT_QUALITY, MODEL_TEXT_FAST];
-const FALLBACK_ERROR_STATUSES = new Set(['RESOURCE_EXHAUSTED', 'PERMISSION_DENIED', 'FAILED_PRECONDITION']);
-
-const shouldFallbackToFastModel = (error: unknown) => {
-  const status = typeof (error as any)?.error?.status === 'string'
-    ? (error as any).error.status
-    : (error as any)?.status;
-  if (typeof status === 'string' && FALLBACK_ERROR_STATUSES.has(status)) {
-    return true;
-  }
-  const message = typeof (error as any)?.message === 'string' ? (error as any).message.toLowerCase() : '';
-  return message.includes('quota') || message.includes('model not found') || message.includes('rate limit');
-};
-
-const generateContentWithFallback = async (
-  ai: GoogleGenAI,
-  request: BaseGenerateContentParams,
-  models: string[] = QUALITY_MODEL_SEQUENCE
-) => {
-  let lastError: unknown = null;
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    try {
-      const response = await ai.models.generateContent({ ...request, model });
-      return { response, model };
-    } catch (error) {
-      lastError = error;
-      const isLastModel = i === models.length - 1;
-      if (!shouldFallbackToFastModel(error) || isLastModel) {
-        throw error;
-      }
-      console.warn(`Gemini model ${model} unavailable, attempting fallback model`, error);
-    }
-  }
-  throw lastError;
 };
 
 const buildWritingBriefContext = (project?: Project, section?: Section): string => {
@@ -92,7 +53,7 @@ export const generateSectionDraft = async (
   section: Section,
   instructions: string
 ): Promise<{ text: string; model: string }> => {
-  const ai = getAI();
+  const llm = getLlmClient();
   const isGeneralWriting = project.projectType === 'GENERAL';
   
   const useReferences = section.useReferences !== false; // Default to true if undefined
@@ -163,17 +124,16 @@ Do NOT use formatted citations like "(Smith, 2023)" or "[1]" in the output text.
   `;
 
   try {
-    const { response, model } = await generateContentWithFallback(ai, {
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        thinkingConfig: { thinkingBudget: 2048 }, // Using some budget for better reasoning on structure
-        maxOutputTokens: 8192,
-      },
+    const { text, model } = await llm.generateText({
+      prompt,
+      system: systemInstruction,
+      model: process.env.MANUSCRIPTAI_LLM_MODEL_QUALITY || process.env.MANUSCRIPTAI_LLM_MODEL_FAST,
+      maxOutputTokens: 8192,
+      temperature: 0.4,
     });
-    return { text: response.text || '', model };
+    return { text, model };
   } catch (error) {
-    console.error("Gemini Draft Error:", error);
+    console.error("LLM Draft Error:", error);
     throw error;
   }
 };
@@ -184,7 +144,7 @@ export const refineTextSelection = async (
   fullContext: string,
   project?: Project
 ): Promise<{ text: string; model: string }> => {
-  const ai = getAI();
+  const llm = getLlmClient();
   const isGeneralWriting = project?.projectType === 'GENERAL';
   const writingBrief = buildWritingBriefContext(project);
   const writingBriefBlock = writingBrief ? `Project Writing Brief:\n${writingBrief}\n\n` : '';
@@ -202,32 +162,36 @@ export const refineTextSelection = async (
   `;
 
   try {
-    const { response, model } = await generateContentWithFallback(ai, {
-      contents: prompt,
+    return await llm.generateText({
+      prompt,
+      model: process.env.MANUSCRIPTAI_LLM_MODEL_FAST,
+      maxOutputTokens: 4096,
+      temperature: 0.2,
     });
-    return { text: response.text || '', model };
   } catch (error) {
-    console.error("Gemini Refine Error:", error);
+    console.error("LLM Refine Error:", error);
     throw error;
   }
 };
 
 export const summarizeReference = async (referenceText: string): Promise<string> => {
-  const ai = getAI();
+  const llm = getLlmClient();
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_TEXT_FAST,
-      contents: `Summarize this research paper citation/abstract in 2-3 sentences for a literature review: ${referenceText}`,
+    const response = await llm.generateText({
+      prompt: `Summarize this research paper citation/abstract in 2-3 sentences for a literature review: ${referenceText}`,
+      model: process.env.MANUSCRIPTAI_LLM_MODEL_FAST,
+      maxOutputTokens: 800,
+      temperature: 0.2,
     });
-    return response.text || '';
+    return response.text;
   } catch (error) {
-    console.error("Gemini Summary Error:", error);
+    console.error("LLM Summary Error:", error);
     throw error;
   }
 };
 
 export const generatePubMedSearchQuery = async (userQuery: string): Promise<string> => {
-  const ai = getAI();
+  const llm = getLlmClient();
   
   const prompt = `
     You are an expert research librarian proficient in PubMed/Medline search syntax.
@@ -246,27 +210,29 @@ export const generatePubMedSearchQuery = async (userQuery: string): Promise<stri
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_TEXT_FAST,
-      contents: prompt,
+    const response = await llm.generateText({
+      prompt,
+      model: process.env.MANUSCRIPTAI_LLM_MODEL_FAST,
+      maxOutputTokens: 600,
+      temperature: 0.1,
     });
     
-    let query = response.text || '';
+    let query = response.text.replace(/\\n/g, '\n');
     // Clean up if the model adds markdown
-    query = query.replace(/^```/g, '').replace(/```$/g, '').trim();
+    query = query.replace(/^```(?:\w+)?/i, '').replace(/```$/i, '').trim();
     // Remove leading/trailing quotes if the model added them
     if (query.startsWith('"') && query.endsWith('"')) {
         query = query.slice(1, -1);
     }
     return query;
   } catch (error) {
-    console.error("Gemini Search Query Gen Error:", error);
+    console.error("LLM Search Query Gen Error:", error);
     throw error;
   }
 };
 
 export const generateFigure = async (prompt: string): Promise<string> => {
-  const ai = getAI();
+  const ai = getImageAI();
   try {
     const response = await ai.models.generateContent({
       model: MODEL_IMAGE,
