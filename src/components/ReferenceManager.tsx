@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, Copy, Download, ExternalLink, Globe, Library, ListOrdered, Plus, Search, Sparkles, Tag, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import { Button } from './Button';
-import { summarizeReference } from '@/services/geminiService';
+import { summarizeReference } from '@/services/llmService';
 import { fetchBatchReferenceMetadata, importReferenceMetadata } from '@/services/referenceService';
 import { generateId } from '@/services/storageService';
 import { PaperSearchResult, Project, Reference } from '@/types';

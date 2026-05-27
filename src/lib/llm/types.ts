@@ -1,4 +1,4 @@
-export type LlmProviderName = 'gemini' | 'langchain';
+export type LlmProviderName = 'langchain';
 
 export interface LlmTextRequest {
   prompt: string;
