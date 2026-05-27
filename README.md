@@ -4,14 +4,13 @@
 
 # ManuscriptAI (Next.js)
 
-Next.js 16 app for drafting and managing research manuscripts plus general writing projects with AI-assisted tooling, inline citation handling, figure/table management, and DOCX export. Text generation defaults to LangChain with a local LM Studio OpenAI-compatible server; Gemini remains available as an explicit provider and for image generation. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
+Next.js 16 app for drafting and managing research manuscripts plus general writing projects with AI-assisted tooling, inline citation handling, figure/table management, and DOCX export. Text generation runs through LangChain with a local LM Studio OpenAI-compatible server. Sections use a ProseMirror editor with persisted edit attribution (Clerk user + LLM model), plus a toggleable highlight mode for reviewing changes.
 
 ## Tech Stack
 - Next.js App Router + React 19, Tailwind CSS for styling
 - ProseMirror editor for section drafting + tracked edit highlights
 - Turso (libSQL via `@libsql/client`) with server route handlers at `/api/projects` (or local SQLite for development)
 - LangChain text-generation utilities for drafting, selection refinement, search assistance, and JSON repair
-- Google Gemini image-generation utility for figure generation
 - Testing: Vitest + Testing Library (jsdom)
 
 ## Getting Started
@@ -35,9 +34,6 @@ Next.js 16 app for drafting and managing research manuscripts plus general writi
      - Base URL: `MANUSCRIPTAI_LMSTUDIO_BASE_URL=http://localhost:1234/v1` (default).
      - Model: `MANUSCRIPTAI_LMSTUDIO_MODEL=openai/gpt-oss-20b` (default). `MANUSCRIPTAI_LLM_MODEL_FAST` and `MANUSCRIPTAI_LLM_MODEL_QUALITY` can override per feature path.
      - API key: `MANUSCRIPTAI_LMSTUDIO_API_KEY=lm-studio` (default placeholder for OpenAI-compatible clients; LM Studio local server does not require a real key by default).
-     - To use Gemini text generation instead, set `MANUSCRIPTAI_LLM_PROVIDER=gemini` and provide `GEMINI_API_KEY` (or legacy `NEXT_PUBLIC_GEMINI_API_KEY`).
-   - **Image generation (Gemini):**
-     - Figure generation still requires `NEXT_PUBLIC_GEMINI_API_KEY`.
    - **PubMed / NCBI (optional but recommended for higher rate limits):** `NCBI_API_KEY`, plus `NCBI_EMAIL` and `NCBI_TOOL` for polite usage.
    - Optional: `NEXT_PUBLIC_API_BASE` if pointing the client to a remote API.
    - To enable Google login, open Clerk Dashboard → **SSO Connections** → add **Google** (dev instances use shared credentials automatically; production instances must provide your own OAuth client).

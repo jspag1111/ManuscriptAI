@@ -6,7 +6,7 @@ import { ChangePanel } from './ChangePanel';
 import { CommentPanel, type CommentPanelFilter } from './CommentPanel';
 import { Button } from './Button';
 import { ProseMirrorEditor, ProseMirrorEditorHandle } from './ProseMirrorEditor';
-import { generateSectionDraft, refineTextSelection } from '@/services/geminiService';
+import { generateSectionDraft, refineTextSelection } from '@/services/llmService';
 import { generateId } from '@/services/storageService';
 import { buildReplaceAllAiReview, buildReplaceSelectionAiReview } from '@/lib/prosemirror/aiReview';
 import { ChangeActor, Project, Section, SectionChangeEvent, SectionCommentAuthor, SectionCommentMessage, SectionCommentThread, SectionVersion } from '@/types';
@@ -259,7 +259,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
         nextContent: text,
         actor,
         request: [
-          'Gemini Drafter',
+          'LLM Drafter',
           `Instruction: ${draftInstruction}`,
           `Notes:\n${notes ?? ''}`.trim(),
           project.projectType === 'GENERAL'
@@ -800,8 +800,8 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                       <Wand2 size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-blue-900">Gemini Drafter</p>
-                      <p className="text-xs text-blue-800/80">Summon AI only when you need it</p>
+                      <p className="text-sm font-semibold text-blue-900">LLM Drafter</p>
+                      <p className="text-xs text-blue-800/80">Use local AI only when you need it</p>
                     </div>
                   </div>
                   <ChevronDown size={18} className={`text-blue-700 transition-transform ${showGenerator ? 'rotate-180' : ''}`} />
@@ -832,7 +832,7 @@ export const SectionEditor: React.FC<SectionEditorProps> = ({
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Prompt Context</p>
                           <p className="text-xs text-slate-500 mt-1">
-                            Choose which brief blocks and sibling sections Gemini should use for this section.
+                            Choose which brief blocks and sibling sections the local LLM should use for this section.
                           </p>
                         </div>
 

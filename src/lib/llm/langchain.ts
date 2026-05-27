@@ -75,21 +75,40 @@ export const createLangChainClient = (): LlmClient => {
         model: textResponse.model,
       };
     } catch (error) {
-      const repair = await generateText({
-        prompt: `Fix this into strict JSON only:\n\n${textResponse.text}`,
-        system: 'You are a JSON repair tool. Convert the input into STRICT valid JSON (RFC 8259). Output ONLY the JSON.',
-        model: request.model || process.env.MANUSCRIPTAI_LLM_MODEL_FAST,
-        maxOutputTokens: request.maxOutputTokens,
-        temperature: 0,
-      });
+      let invalidText = textResponse.text;
+      let parseError = error;
+      const repairMaxTokens = Math.max(request.maxOutputTokens ?? 0, 4096);
 
-      const { data, raw } = parseJsonFromText<T>(repair.text);
-      return {
-        data,
-        rawText: repair.text,
-        rawJson: raw,
-        model: repair.model,
-      };
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const repair = await generateText({
+          prompt: [
+            'Convert the following invalid model output into strict JSON only.',
+            `Parser error: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            'Rules: output one valid JSON value, use double quotes, escape quotes inside strings, remove markdown and trailing commentary.',
+            '',
+            invalidText,
+          ].join('\n'),
+          system: 'You are a JSON repair tool. Output ONLY strict valid JSON (RFC 8259), with no markdown.',
+          model: request.model || process.env.MANUSCRIPTAI_LLM_MODEL_FAST,
+          maxOutputTokens: repairMaxTokens,
+          temperature: 0,
+        });
+
+        try {
+          const { data, raw } = parseJsonFromText<T>(repair.text);
+          return {
+            data,
+            rawText: repair.text,
+            rawJson: raw,
+            model: repair.model,
+          };
+        } catch (repairError) {
+          invalidText = repair.text;
+          parseError = repairError;
+        }
+      }
+
+      throw parseError;
     }
   };
 

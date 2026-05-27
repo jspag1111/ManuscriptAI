@@ -23,10 +23,10 @@ describe('llm provider selection', () => {
     expect(mod.getLlmProviderName()).toBe('langchain');
   });
 
-  it('keeps Gemini available as an explicit provider', async () => {
+  it('rejects Gemini because text generation is LangChain-only', async () => {
     vi.stubEnv('MANUSCRIPTAI_LLM_PROVIDER', 'gemini');
     const { getLlmProviderName } = await import('../index');
 
-    expect(getLlmProviderName()).toBe('gemini');
+    expect(() => getLlmProviderName()).toThrow('Unsupported LLM provider: gemini');
   });
 });

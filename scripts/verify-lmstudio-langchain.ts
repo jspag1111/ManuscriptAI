@@ -1,6 +1,6 @@
 import { getLlmClient } from '@/lib/llm';
 import { generateClarifyingQuestionsAndPlan } from '@/lib/discover/agent';
-import { generatePubMedSearchQuery, generateSectionDraft, refineTextSelection, summarizeReference } from '@/services/geminiService';
+import { generatePubMedSearchQuery, generateSectionDraft, refineTextSelection, summarizeReference } from '@/services/llmService';
 import type { Project, Section } from '@/types';
 
 const preview = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 180);

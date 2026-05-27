@@ -100,4 +100,25 @@ describe('LangChain LM Studio client', () => {
     expect(mockState.instances[1].invoke.mock.calls[0][0][0][1]).toContain('JSON repair tool');
     expect(mockState.instances[1].invoke.mock.calls[0][0][1][1]).toContain('not json');
   });
+
+  it('retries JSON repair once when the first repair is still malformed', async () => {
+    mockState.responses.push(
+      { content: 'not json' },
+      { content: '{"items":["unterminated}' },
+      { content: '{"items":["fixed"]}' }
+    );
+    const { createLangChainClient } = await import('../langchain');
+
+    const response = await createLangChainClient().generateJson<{ items: string[] }>({
+      system: 'Return JSON.',
+      prompt: 'Need JSON.',
+      temperature: 0,
+      maxOutputTokens: 100,
+    });
+
+    expect(response.data).toEqual({ items: ['fixed'] });
+    expect(mockState.instances).toHaveLength(3);
+    expect(mockState.instances[1].params.maxTokens).toBe(4096);
+    expect(mockState.instances[2].invoke.mock.calls[0][0][1][1]).toContain('unterminated');
+  });
 });

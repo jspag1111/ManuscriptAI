@@ -1,9 +1,17 @@
+## 2026-05-26 20:54 EDT
+- (Commit: codex/use-langchain-lmstudio) Fixed AI text helpers to route browser requests through a Next.js Node route handler so LangChain and LM Studio stay server-side.
+- (Commit: codex/use-langchain-lmstudio) Changed local LLM UI calls to use the same LangChain-backed draft, refine, summarize, and PubMed-query behavior without bundling provider code into the browser path.
+- (Commit: codex/use-langchain-lmstudio) Moved text-generation helpers into `llmService` so LangChain-backed AI code no longer lives in the legacy Gemini service.
+- (Commit: codex/use-langchain-lmstudio) Removed the Gemini SDK provider and unused image-generation service so AI generation is LangChain-only.
+- (Commit: codex/use-langchain-lmstudio) Protected the new LLM route handler with Clerk auth to avoid exposing a public local model endpoint.
+- (Commit: codex/use-langchain-lmstudio) Hardened LangChain JSON repair for local model outputs that need more than one strict-JSON cleanup pass.
+
 ## 2026-05-26 19:44 EDT
 - (Commit: codex/use-langchain-lmstudio) Added a LangChain `ChatOpenAI` LLM provider configured for LM Studio's local OpenAI-compatible server with `openai/gpt-oss-20b` defaults.
 - (Commit: codex/use-langchain-lmstudio) Changed text drafting, selection refinement, reference summaries, and PubMed query generation to use the shared LLM abstraction instead of constructing Gemini clients directly.
 - (Commit: codex/use-langchain-lmstudio) Added unit coverage for LangChain provider selection, LM Studio request mapping, JSON repair, and text-helper routing.
 - (Commit: codex/use-langchain-lmstudio) Added a live LM Studio verification script for the app's LangChain-backed text features.
-- (Commit: codex/use-langchain-lmstudio) Documented the local LM Studio setup and clarified that Gemini remains required for image generation.
+- (Commit: codex/use-langchain-lmstudio) Documented the local LM Studio setup.
 
 ## 2026-04-19 17:33 EDT
 - (Commit: codex/custom-general-writing-brief-workflow) Changed general writing briefs from a fixed template into fully user-defined brief blocks with add, delete, edit, and reorder controls.

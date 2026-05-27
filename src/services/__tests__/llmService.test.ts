@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { auth } from '@clerk/nextjs/server';
 import type { Project, Section } from '@/types';
 
 const mockLlmClient = {
@@ -9,6 +10,10 @@ const mockLlmClient = {
 
 vi.mock('@/lib/llm', () => ({
   getLlmClient: vi.fn(() => mockLlmClient),
+}));
+
+vi.mock('@clerk/nextjs/server', () => ({
+  auth: vi.fn(async () => ({ userId: 'user-test' })),
 }));
 
 const project = {
@@ -42,15 +47,16 @@ const section = {
   },
 } as unknown as Section;
 
-describe('geminiService text helpers', () => {
+describe('llmService text helpers', () => {
   beforeEach(() => {
     mockLlmClient.generateText.mockReset();
     mockLlmClient.generateJson.mockReset();
+    vi.mocked(auth).mockResolvedValue({ userId: 'user-test' } as Awaited<ReturnType<typeof auth>>);
   });
 
   it('generates section drafts through the shared LLM client', async () => {
     mockLlmClient.generateText.mockResolvedValue({ text: 'Draft text', model: 'openai/gpt-oss-20b' });
-    const { generateSectionDraft } = await import('../geminiService');
+    const { generateSectionDraft } = await import('../llmService');
 
     const result = await generateSectionDraft(project, section, 'Make it concise.');
 
@@ -66,7 +72,7 @@ describe('geminiService text helpers', () => {
     mockLlmClient.generateText
       .mockResolvedValueOnce({ text: 'Refined text', model: 'openai/gpt-oss-20b' })
       .mockResolvedValueOnce({ text: 'Summary text', model: 'openai/gpt-oss-20b' });
-    const { refineTextSelection, summarizeReference } = await import('../geminiService');
+    const { refineTextSelection, summarizeReference } = await import('../llmService');
 
     await expect(refineTextSelection('rough text', 'tighten', 'full context', project)).resolves.toEqual({
       text: 'Refined text',
@@ -81,11 +87,48 @@ describe('geminiService text helpers', () => {
       text: '```\\n(\"Diabetes Mellitus\"[Mesh])\\n```',
       model: 'openai/gpt-oss-20b',
     });
-    const { generatePubMedSearchQuery } = await import('../geminiService');
+    const { generatePubMedSearchQuery } = await import('../llmService');
 
     await expect(generatePubMedSearchQuery('diabetes reviews')).resolves.toBe('(\"Diabetes Mellitus\"[Mesh])');
     expect(mockLlmClient.generateText).toHaveBeenCalledWith(expect.objectContaining({
       prompt: expect.stringContaining('diabetes reviews'),
     }));
+  });
+
+  it('handles browser-facing LLM route requests on the server', async () => {
+    mockLlmClient.generateText.mockResolvedValue({ text: 'Summary text', model: 'openai/gpt-oss-20b' });
+    const { POST } = await import('@/app/api/llm/route');
+
+    const response = await POST(new Request('http://localhost/api/llm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'summarizeReference',
+        referenceText: 'Paper title and abstract',
+      }),
+    }));
+
+    await expect(response.json()).resolves.toEqual({ summary: 'Summary text' });
+    expect(mockLlmClient.generateText).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining('Paper title and abstract'),
+    }));
+  });
+
+  it('rejects unauthenticated browser-facing LLM route requests', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as Awaited<ReturnType<typeof auth>>);
+    const { POST } = await import('@/app/api/llm/route');
+
+    const response = await POST(new Request('http://localhost/api/llm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'summarizeReference',
+        referenceText: 'Paper title and abstract',
+      }),
+    }));
+
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(response.status).toBe(401);
+    expect(mockLlmClient.generateText).not.toHaveBeenCalled();
   });
 });

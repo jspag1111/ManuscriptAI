@@ -1,14 +1,51 @@
-import { GoogleGenAI } from "@google/genai";
-import { MODEL_IMAGE } from '@/constants';
-import { getLlmClient } from '@/lib/llm';
-import { Project, Reference, Section } from '@/types';
+import { Project, Section } from '@/types';
 
-const getImageAI = () => {
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Gemini API key is not configured. Set NEXT_PUBLIC_GEMINI_API_KEY.');
+type LlmApiAction =
+  | {
+      action: 'generateSectionDraft';
+      project: Project;
+      section: Section;
+      instructions: string;
+    }
+  | {
+      action: 'refineTextSelection';
+      selection: string;
+      instruction: string;
+      fullContext: string;
+      project?: Project;
+    }
+  | {
+      action: 'summarizeReference';
+      referenceText: string;
+    }
+  | {
+      action: 'generatePubMedSearchQuery';
+      userQuery: string;
+    };
+
+const isBrowserRuntime = () =>
+  typeof window !== 'undefined'
+  && typeof window.document !== 'undefined'
+  && process.env.NODE_ENV !== 'test';
+
+const postLlmAction = async <T,>(payload: LlmApiAction): Promise<T> => {
+  const response = await fetch('/api/llm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(errorText || `LLM request failed with status ${response.status}`);
   }
-  return new GoogleGenAI({ apiKey });
+
+  return response.json() as Promise<T>;
+};
+
+const getServerLlmClient = async () => {
+  const { getLlmClient } = await import('@/lib/llm');
+  return getLlmClient();
 };
 
 const buildWritingBriefContext = (project?: Project, section?: Section): string => {
@@ -53,7 +90,16 @@ export const generateSectionDraft = async (
   section: Section,
   instructions: string
 ): Promise<{ text: string; model: string }> => {
-  const llm = getLlmClient();
+  if (isBrowserRuntime()) {
+    return postLlmAction<{ text: string; model: string }>({
+      action: 'generateSectionDraft',
+      project,
+      section,
+      instructions,
+    });
+  }
+
+  const llm = await getServerLlmClient();
   const isGeneralWriting = project.projectType === 'GENERAL';
   
   const useReferences = section.useReferences !== false; // Default to true if undefined
@@ -144,7 +190,17 @@ export const refineTextSelection = async (
   fullContext: string,
   project?: Project
 ): Promise<{ text: string; model: string }> => {
-  const llm = getLlmClient();
+  if (isBrowserRuntime()) {
+    return postLlmAction<{ text: string; model: string }>({
+      action: 'refineTextSelection',
+      selection,
+      instruction,
+      fullContext,
+      project,
+    });
+  }
+
+  const llm = await getServerLlmClient();
   const isGeneralWriting = project?.projectType === 'GENERAL';
   const writingBrief = buildWritingBriefContext(project);
   const writingBriefBlock = writingBrief ? `Project Writing Brief:\n${writingBrief}\n\n` : '';
@@ -175,7 +231,15 @@ export const refineTextSelection = async (
 };
 
 export const summarizeReference = async (referenceText: string): Promise<string> => {
-  const llm = getLlmClient();
+  if (isBrowserRuntime()) {
+    const response = await postLlmAction<{ summary: string }>({
+      action: 'summarizeReference',
+      referenceText,
+    });
+    return response.summary;
+  }
+
+  const llm = await getServerLlmClient();
   try {
     const response = await llm.generateText({
       prompt: `Summarize this research paper citation/abstract in 2-3 sentences for a literature review: ${referenceText}`,
@@ -191,7 +255,15 @@ export const summarizeReference = async (referenceText: string): Promise<string>
 };
 
 export const generatePubMedSearchQuery = async (userQuery: string): Promise<string> => {
-  const llm = getLlmClient();
+  if (isBrowserRuntime()) {
+    const response = await postLlmAction<{ query: string }>({
+      action: 'generatePubMedSearchQuery',
+      userQuery,
+    });
+    return response.query;
+  }
+
+  const llm = await getServerLlmClient();
   
   const prompt = `
     You are an expert research librarian proficient in PubMed/Medline search syntax.
@@ -227,30 +299,6 @@ export const generatePubMedSearchQuery = async (userQuery: string): Promise<stri
     return query;
   } catch (error) {
     console.error("LLM Search Query Gen Error:", error);
-    throw error;
-  }
-};
-
-export const generateFigure = async (prompt: string): Promise<string> => {
-  const ai = getImageAI();
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL_IMAGE,
-      contents: prompt,
-      config: {
-        // Nano banana (gemini-2.5-flash-image) doesn't support responseMimeType/Schema
-      }
-    });
-
-    // Extract image
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      }
-    }
-    throw new Error("No image generated");
-  } catch (error) {
-    console.error("Gemini Image Error:", error);
     throw error;
   }
 };
