@@ -1,3 +1,8 @@
+## 2026-05-27 21:31 EDT
+- (Commit: codex/fix-editor-diff-comments) Fixed tracked edit replay so persisted newest-first LLM and human edit events are rebuilt chronologically and older highlights remain visible after reloads or later edits.
+- (Commit: codex/fix-editor-diff-comments) Added regression coverage for multi-event ProseMirror tracked-change replay.
+- (Commit: codex/fix-editor-diff-comments) Changed the Comments panel to use a narrower, denser drawer layout with compact thread rows, message bubbles, controls, and mobile width.
+
 ## 2026-05-26 20:54 EDT
 - (Commit: codex/use-langchain-lmstudio) Fixed AI text helpers to route browser requests through a Next.js Node route handler so LangChain and LM Studio stay server-side.
 - (Commit: codex/use-langchain-lmstudio) Changed local LLM UI calls to use the same LangChain-backed draft, refine, summarize, and PubMed-query behavior without bundling provider code into the browser path.

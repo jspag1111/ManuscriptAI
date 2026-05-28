@@ -34,8 +34,9 @@ const replayEvents = (
 ) => {
   let doc = baseDoc;
   let changeSet = ChangeSet.create(baseDoc);
+  const chronologicalEvents = [...events].reverse();
 
-  for (const event of events) {
+  for (const event of chronologicalEvents) {
     for (const stepJson of event.steps) {
       try {
         const step = Step.fromJSON(schema, stepJson as any);
